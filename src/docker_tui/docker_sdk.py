@@ -16,14 +16,18 @@ from types import TracebackType
 from typing import Any
 
 import docker
-from docker.errors import APIError, DockerException
+from docker.errors import APIError, DockerException, NotFound
 
 from docker_tui.config import DEFAULT_ENDPOINT
 from docker_tui.docker_gateway import (
     ConnectionState,
+    ContainerLogView,
+    ContainerOperationError,
     DockerGateway,
     DockerSnapshot,
     DockerSystemSummary,
+    ManagedContainer,
+    bucket_for_status,
 )
 
 log = logging.getLogger(__name__)
@@ -109,6 +113,57 @@ def build_summary(version_data: dict[str, Any], info_data: dict[str, Any]) -> Do
     )
 
 
+def build_managed(native: Any) -> ManagedContainer:
+    """Translate one SDK container object to a validated row."""
+    container_id = str(getattr(native, "id", "") or "")
+    raw_name = str(getattr(native, "name", "") or "unknown")
+    image = getattr(native, "image", None)
+    tags = getattr(image, "tags", None) or []
+    if tags:
+        image_ref = str(tags[0])
+    else:
+        image_ref = str(getattr(image, "short_id", "unknown") or "unknown")
+    status = str(getattr(native, "status", "unknown") or "unknown")
+    return ManagedContainer(
+        container_id=container_id,
+        name=raw_name.lstrip("/") or "unknown",
+        image_ref=image_ref,
+        state_bucket=bucket_for_status(status),
+        exact_status=status,
+    )
+
+
+def _operation_error(operation: str, container: str, exc: BaseException) -> ContainerOperationError:
+    """Map an SDK failure to an actionable operation error."""
+    if isinstance(exc, APIError):
+        code = exc.status_code
+        if code == 404 or isinstance(exc, NotFound):
+            return ContainerOperationError(
+                operation, container, "it was not found.", "Press r to refresh the list."
+            )
+        if code == 409:
+            return ContainerOperationError(
+                operation,
+                container,
+                "the Engine refused it (often: removing a running container).",
+                "Stop the container first, then retry.",
+            )
+    chained = _chain_messages(exc).lower()
+    if "permission denied" in chained or "permission" in chained:
+        return ContainerOperationError(
+            operation,
+            container,
+            "permission was denied.",
+            "Check Engine access, then press r to retry.",
+        )
+    return ContainerOperationError(
+        operation,
+        container,
+        "the Engine reported a failure.",
+        "Press r to refresh and retry.",
+    )
+
+
 class SdkGateway(DockerGateway):
     """Local-Engine gateway backed by the official Docker SDK."""
 
@@ -191,6 +246,107 @@ class SdkGateway(DockerGateway):
             endpoint=self._endpoint,
             probed_at=probed_at,
         )
+
+    def _container_client(self) -> docker.DockerClient:
+        return self._make_client()
+
+    def list_containers(self) -> list[ManagedContainer]:
+        try:
+            client = self._container_client()
+        except Exception as exc:  # noqa: BLE001 - degraded list, status explains
+            log.debug("Container listing client failed: %r", exc)
+            return []
+        try:
+            natives = client.containers.list(all=True, limit=200)
+        except Exception as exc:  # noqa: BLE001 - degraded list
+            log.debug("Container listing query failed: %r", exc)
+            return []
+        finally:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001, S110 - best-effort cleanup
+                pass
+        rows: list[ManagedContainer] = []
+        for native in natives:
+            try:
+                rows.append(build_managed(native))
+            except (ValueError, TypeError, AttributeError) as exc:
+                log.debug("Skipping unparsable container row: %r", exc)
+        return rows
+
+    def _one(self, container_id: str, operation: str) -> Any:
+        try:
+            client = self._container_client()
+        except Exception as exc:  # noqa: BLE001 - mapped below
+            raise _operation_error(operation, container_id, exc) from exc
+        try:
+            return client.containers.get(container_id)
+        except Exception as exc:  # noqa: BLE001 - mapped below
+            raise _operation_error(operation, container_id, exc) from exc
+        finally:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001, S110 - best-effort cleanup
+                pass
+
+    def get_container(self, container_id: str) -> ManagedContainer:
+        return build_managed(self._one(container_id, "inspect"))
+
+    def container_logs(self, container_id: str, tail: int = 200) -> ContainerLogView:
+        bounded = max(1, min(tail, 1000))
+        native = self._one(container_id, "logs")
+        try:
+            raw = native.logs(tail=bounded)
+        except Exception as exc:  # noqa: BLE001 - mapped below
+            raise _operation_error("logs", container_id, exc) from exc
+        if isinstance(raw, bytes):
+            text = raw.decode("utf-8", errors="replace")
+        else:
+            text = str(raw)
+        return ContainerLogView(
+            container_id=container_id,
+            lines=tuple(text.splitlines()[-bounded:]),
+            fetched_at=datetime.now(UTC),
+        )
+
+    def _act(self, container_id: str, operation: str, action: str) -> ManagedContainer:
+        native = self._one(container_id, operation)
+        name = str(getattr(native, "name", container_id))
+        try:
+            if action == "start":
+                native.start()
+            elif action == "stop":
+                native.stop(timeout=10)
+            elif action == "restart":
+                native.restart(timeout=10)
+            else:  # pragma: no cover - guarded by callers
+                raise ValueError(f"unknown action: {action}")
+        except ContainerOperationError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - mapped below
+            raise _operation_error(operation, name, exc) from exc
+        try:
+            native.reload()
+        except Exception:  # noqa: BLE001 - stale row still better than failure
+            log.debug("Container reload failed after %s; using cached row", operation)
+        return build_managed(native)
+
+    def start_container(self, container_id: str) -> ManagedContainer:
+        return self._act(container_id, "start", "start")
+
+    def stop_container(self, container_id: str) -> ManagedContainer:
+        return self._act(container_id, "stop", "stop")
+
+    def restart_container(self, container_id: str) -> ManagedContainer:
+        return self._act(container_id, "restart", "restart")
+
+    def remove_container(self, container_id: str) -> None:
+        native = self._one(container_id, "remove")
+        name = str(getattr(native, "name", container_id))
+        try:
+            native.remove()
+        except Exception as exc:  # noqa: BLE001 - mapped below
+            raise _operation_error("remove", name, exc) from exc
 
     def __enter__(self) -> SdkGateway:
         return self

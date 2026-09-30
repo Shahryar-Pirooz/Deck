@@ -1,0 +1,23 @@
+# Keep the build context to what the image needs: packaging metadata + source.
+.venv/
+venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+tests/
+specs/
+.specify/
+.opencode/
+.opencode
+coverage.xml
+*.log*
+.env*

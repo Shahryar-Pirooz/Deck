@@ -1,5 +1,5 @@
 [project]
-name = "docker-tui-manager"
+name = "deck-manager"
 version = "0.1.0"
 description = "Keyboard-first terminal UI for managing local Docker Engine state"
 readme = "README.md"
@@ -22,7 +22,7 @@ dev = [
 ]
 
 [project.scripts]
-docker-tui = "docker_tui.cli:main"
+deck = "docker_tui.cli:main"
 
 [build-system]
 requires = ["hatchling>=1.27"]

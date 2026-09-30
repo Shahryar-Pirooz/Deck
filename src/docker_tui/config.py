@@ -1,6 +1,6 @@
 """Validated application configuration with safe defaults.
 
-Config file: ``platformdirs.user_config_path("docker-tui")/config.toml``
+Config file: ``platformdirs.user_config_path("Deck")/config.toml``
 (read with stdlib ``tomllib``). Missing files, invalid TOML, invalid single
 values, and unknown keys never block startup — defaults apply per-field and
 the caller is told what was ignored.
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import platformdirs
 
-APP_NAME = "docker-tui"
+APP_NAME = "Deck"
 DEFAULT_ENDPOINT = "unix:///var/run/docker.sock"
 DEFAULT_THEME = "dark"
 _VALID_THEMES = ("dark", "light")

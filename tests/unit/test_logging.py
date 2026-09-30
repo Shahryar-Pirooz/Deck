@@ -38,7 +38,7 @@ def test_setup_logging_applies_filter(tmp_path: object, monkeypatch: object) -> 
             for h in root.handlers
             if isinstance(h, (logging.FileHandler, logging.StreamHandler))
         )
-        assert str(log_path).endswith("docker-tui.log")
+        assert str(log_path).endswith("deck.log")
     finally:
         for handler in list(root.handlers):
             root.removeHandler(handler)

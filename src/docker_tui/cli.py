@@ -1,4 +1,4 @@
-"""Terminal entry point: ``docker-tui``."""
+"""Terminal entry point: ``Deck``."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI flags."""
     parser = argparse.ArgumentParser(
-        prog="docker-tui",
+        prog="Deck",
         description="Keyboard-first terminal UI for local Docker Engine state.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -49,35 +49,35 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = load_config(args.config)
     except Exception as exc:  # noqa: BLE001 - config must never block startup
-        print(f"docker-tui: ignoring config ({exc}); using defaults.", file=sys.stderr)
+        print(f"Deck: ignoring config ({exc}); using defaults.", file=sys.stderr)
         config = ApplicationConfiguration()
 
     debug = bool(args.debug or config.logging.debug)
     try:
         log_path = setup_logging(debug=debug)
     except Exception as exc:  # noqa: BLE001 - logging must never block startup
-        print(f"docker-tui: logging unavailable ({exc}).", file=sys.stderr)
+        print(f"Deck: logging unavailable ({exc}).", file=sys.stderr)
         log_path = Path("-")
 
     for notice in config.ignored:
-        print(f"docker-tui: config: {notice}", file=sys.stderr)
+        print(f"Deck: config: {notice}", file=sys.stderr)
 
     try:
         gateway = build_gateway(config)
         app = DockerTUIApp(gateway=gateway, config=config)
     except Exception as exc:  # noqa: BLE001 - fatal init stays concise
-        print(f"docker-tui: failed to initialize: {exc}", file=sys.stderr)
+        print(f"Deck: failed to initialize: {exc}", file=sys.stderr)
         if debug:
             raise
         return 1
 
-    log.info("Starting docker-tui (debug=%s, log=%s)", debug, log_path)
+    log.info("Starting Deck (debug=%s, log=%s)", debug, log_path)
     try:
         app.run()
     except KeyboardInterrupt:
         return 0
     except Exception as exc:  # noqa: BLE001 - fatal runtime stays concise
-        print(f"docker-tui: fatal error: {exc}", file=sys.stderr)
+        print(f"Deck: fatal error: {exc}", file=sys.stderr)
         if debug:
             raise
         return 1
