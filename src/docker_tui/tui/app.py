@@ -29,7 +29,7 @@ from deck.tui.widgets import FieldRow
 log = logging.getLogger(__name__)
 
 
-class DockerTUIApp(App[None]):
+class DeckApp(App[None]):
     """Keyboard-first Docker manager with a compact, responsive layout."""
 
     CSS = """

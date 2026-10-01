@@ -13,7 +13,7 @@ from deck.docker_gateway import (
     DockerSnapshot,
     ManagedContainer,
 )
-from deck.tui.app import DockerTUIApp
+from deck.tui.app import DeckApp
 from deck.tui.screens import ContainerDetailsScreen, ContainerListView, StatusView
 
 
@@ -110,7 +110,7 @@ def test_unavailable_guidance_names_container_run(monkeypatch) -> None:  # type:
 
 
 async def test_j_k_move_containers_when_rows_present() -> None:
-    app = DockerTUIApp(
+    app = DeckApp(
         gateway=FakeListGateway([_row("a"), _row("b")]),
         config=ApplicationConfiguration(),
     )
@@ -128,7 +128,7 @@ async def test_j_k_move_containers_when_rows_present() -> None:
 
 
 async def test_enter_opens_details() -> None:
-    app = DockerTUIApp(
+    app = DeckApp(
         gateway=FakeListGateway([_row("a")]),
         config=ApplicationConfiguration(),
     )

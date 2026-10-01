@@ -13,7 +13,7 @@ from deck.docker_gateway import (
     DockerSnapshot,
     ManagedContainer,
 )
-from deck.tui.app import DockerTUIApp
+from deck.tui.app import DeckApp
 from deck.tui.screens import ConfirmScreen, ContainerDetailsScreen
 
 
@@ -94,9 +94,9 @@ class FakeLifecycleGateway(DockerGateway):
         del self._rows[container_id]
 
 
-def _app(rows: list[ManagedContainer]) -> tuple[DockerTUIApp, FakeLifecycleGateway]:
+def _app(rows: list[ManagedContainer]) -> tuple[DeckApp, FakeLifecycleGateway]:
     gateway = FakeLifecycleGateway(rows)
-    return DockerTUIApp(gateway=gateway, config=ApplicationConfiguration()), gateway
+    return DeckApp(gateway=gateway, config=ApplicationConfiguration()), gateway
 
 
 async def test_stop_action_updates_row() -> None:

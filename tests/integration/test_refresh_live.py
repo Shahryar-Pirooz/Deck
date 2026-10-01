@@ -7,7 +7,7 @@ import pytest
 from deck.config import ApplicationConfiguration
 from deck.docker_gateway import ConnectionState
 from deck.docker_sdk import SdkGateway
-from deck.tui.app import DockerTUIApp
+from deck.tui.app import DeckApp
 
 pytestmark = pytest.mark.integration
 
@@ -19,7 +19,7 @@ async def test_refresh_live_updates() -> None:
             pytest.skip("no live Docker daemon")
     except Exception:  # noqa: BLE001
         pytest.skip("no live Docker daemon")
-    app = DockerTUIApp(gateway=SdkGateway(), config=ApplicationConfiguration())
+    app = DeckApp(gateway=SdkGateway(), config=ApplicationConfiguration())
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("r")

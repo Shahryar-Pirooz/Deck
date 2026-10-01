@@ -12,7 +12,7 @@ from deck.config import ApplicationConfiguration, default_config_path, load_conf
 from deck.docker_gateway import DockerGateway
 from deck.docker_sdk import SdkGateway
 from deck.logging_setup import setup_logging
-from deck.tui.app import DockerTUIApp
+from deck.tui.app import DeckApp
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         gateway = build_gateway(config)
-        app = DockerTUIApp(gateway=gateway, config=config)
+        app = DeckApp(gateway=gateway, config=config)
     except Exception as exc:  # noqa: BLE001 - fatal init stays concise
         print(f"Deck: failed to initialize: {exc}", file=sys.stderr)
         if debug:

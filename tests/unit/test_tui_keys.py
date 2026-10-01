@@ -10,7 +10,7 @@ from deck.docker_gateway import (
     DockerGateway,
     DockerSnapshot,
 )
-from deck.tui.app import DockerTUIApp
+from deck.tui.app import DeckApp
 from deck.tui.screens import HelpScreen, StatusView
 
 
@@ -29,8 +29,8 @@ class FakeGateway(DockerGateway):
         )
 
 
-def make_app() -> DockerTUIApp:
-    return DockerTUIApp(gateway=FakeGateway(), config=ApplicationConfiguration())
+def make_app() -> DeckApp:
+    return DeckApp(gateway=FakeGateway(), config=ApplicationConfiguration())
 
 
 async def test_j_k_move_selection() -> None:

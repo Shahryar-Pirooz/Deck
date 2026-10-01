@@ -14,7 +14,7 @@ from deck.docker_gateway import (
     DockerSnapshot,
     ManagedContainer,
 )
-from deck.tui.app import DockerTUIApp
+from deck.tui.app import DeckApp
 from deck.tui.screens import ContainerDetailsScreen
 
 
@@ -74,7 +74,7 @@ class FakeInspectGateway(DockerGateway):
 
 
 async def test_details_show_exact_status() -> None:
-    app = DockerTUIApp(
+    app = DeckApp(
         gateway=FakeInspectGateway(),
         config=ApplicationConfiguration(),
     )
@@ -89,7 +89,7 @@ async def test_details_show_exact_status() -> None:
 
 
 async def test_logs_key_shows_content() -> None:
-    app = DockerTUIApp(
+    app = DeckApp(
         gateway=FakeInspectGateway(),
         config=ApplicationConfiguration(),
     )
@@ -108,7 +108,7 @@ async def test_logs_key_shows_content() -> None:
 
 
 async def test_logs_failure_reports_actionable_error() -> None:
-    app = DockerTUIApp(
+    app = DeckApp(
         gateway=FakeInspectGateway(fail_logs=True),
         config=ApplicationConfiguration(),
     )

@@ -12,7 +12,7 @@ from deck.docker_gateway import (
     DockerSnapshot,
 )
 from deck.docker_sdk import SdkGateway
-from deck.tui.app import DockerTUIApp
+from deck.tui.app import DeckApp
 from deck.tui.screens import HelpScreen
 
 
@@ -32,7 +32,7 @@ class FakeGateway(DockerGateway):
 
 
 async def test_q_quits_from_main() -> None:
-    app = DockerTUIApp(gateway=FakeGateway(), config=ApplicationConfiguration())
+    app = DeckApp(gateway=FakeGateway(), config=ApplicationConfiguration())
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("q")
@@ -40,7 +40,7 @@ async def test_q_quits_from_main() -> None:
 
 
 async def test_q_closes_help_first() -> None:
-    app = DockerTUIApp(gateway=FakeGateway(), config=ApplicationConfiguration())
+    app = DeckApp(gateway=FakeGateway(), config=ApplicationConfiguration())
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("question_mark")

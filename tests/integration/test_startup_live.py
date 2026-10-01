@@ -8,7 +8,7 @@ import pytest
 
 from deck.config import ApplicationConfiguration
 from deck.docker_sdk import SdkGateway
-from deck.tui.app import DockerTUIApp
+from deck.tui.app import DeckApp
 
 pytestmark = pytest.mark.integration
 
@@ -28,7 +28,7 @@ async def test_startup_live_shows_summary() -> None:
     """Header/status/footer render with populated summary on a live daemon."""
     if not _daemon_reachable():
         pytest.skip("no live Docker daemon")
-    app = DockerTUIApp(gateway=SdkGateway(), config=ApplicationConfiguration())
+    app = DeckApp(gateway=SdkGateway(), config=ApplicationConfiguration())
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.query_one("#status-view") is not None
