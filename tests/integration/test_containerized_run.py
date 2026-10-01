@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from docker_tui.docker_gateway import ConnectionState, ManagedContainer
-from docker_tui.docker_sdk import SdkGateway
+from deck.docker_gateway import ConnectionState, ManagedContainer
+from deck.docker_sdk import SdkGateway
 
 pytestmark = pytest.mark.integration
 

@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
-from docker_tui import services
-from docker_tui.config import ApplicationConfiguration
-from docker_tui.docker_gateway import (
+from deck import services
+from deck.config import ApplicationConfiguration
+from deck.docker_gateway import (
     ConnectionState,
     DockerGateway,
     DockerSnapshot,
     ManagedContainer,
 )
-from docker_tui.tui.screens import (
+from deck.tui.screens import (
     ContainerDetailsScreen,
     ContainerListView,
     HelpScreen,
@@ -23,17 +24,122 @@ from docker_tui.tui.screens import (
     app_footer,
     app_header,
 )
-from docker_tui.tui.widgets import FieldRow
+from deck.tui.widgets import FieldRow
 
 log = logging.getLogger(__name__)
 
 
 class DockerTUIApp(App[None]):
-    """Single-screen Docker status TUI with manual-only refresh."""
+    """Keyboard-first Docker manager with a compact, responsive layout."""
+
+    CSS = """
+    Screen {
+        background: $surface;
+    }
+
+    Header {
+        height: 3;
+        dock: top;
+    }
+
+    Footer {
+        height: 1;
+    }
+
+    #status-view {
+        height: 16;
+        margin: 0 1;
+        padding: 0 1;
+        border: round $primary;
+        layout: grid;
+        grid-size: 2;
+        grid-columns: 1fr 1fr;
+        column-span: 2;
+    }
+
+    #status-view .panel-title {
+        column-span: 2;
+        height: 1;
+        color: $text-accent;
+        text-style: bold;
+    }
+
+    #status-view .field-label {
+        width: 16;
+        color: $text-muted;
+    }
+
+    #status-view .field-value {
+        color: $text;
+    }
+
+    #status-view .detail {
+        column-span: 2;
+        color: $text-muted;
+        height: auto;
+    }
+
+    #container-list {
+        height: 1fr;
+        margin: 0 1;
+        padding: 1;
+        border: round $secondary;
+        overflow-y: auto;
+        color: $text;
+    }
+
+    #container-list .panel-title {
+        color: $text-accent;
+        text-style: bold;
+    }
+
+    #loading {
+        height: 1;
+        margin: 0 2;
+        color: $text-muted;
+    }
+
+    .selected {
+        text-style: bold reverse;
+    }
+
+    ModalScreen {
+        align: center middle;
+        background: $background 70%;
+    }
+
+    #details-dialog, #confirm-dialog, #help-dialog {
+        width: 80%;
+        max-width: 100;
+        max-height: 80%;
+        padding: 2;
+        border: round $primary;
+        background: $surface;
+    }
+
+    #details-text, #confirm-text, #help-text {
+        width: 1fr;
+    }
+
+    #details-actions, #details-result {
+        margin-top: 1;
+        color: $text-muted;
+    }
+
+    #details-logs {
+        height: 1fr;
+        margin-top: 1;
+        padding: 1;
+        border: round $secondary;
+        overflow: auto;
+    }
+    """
 
     BINDINGS = [
         ("j", "move_down", "Down"),
         ("k", "move_up", "Up"),
+        ("down", "move_down", "Down"),
+        ("up", "move_up", "Up"),
         ("enter", "open_container", "Open"),
         ("r", "refresh", "Refresh"),
         ("question_mark", "help", "Help"),
@@ -55,18 +161,16 @@ class DockerTUIApp(App[None]):
 
     @property
     def diagnostics(self) -> bool:
-        """Whether diagnostic detail is shown on screen."""
         return self._app_config.logging.debug
 
     def compose(self) -> ComposeResult:
         yield app_header()
         yield StatusView(id="status-view")
         yield ContainerListView()
-        yield Static("Probing Docker…", id="loading")
+        yield Static("Connecting to Docker…", id="loading")
         yield app_footer()
 
     def on_mount(self) -> None:
-        """Render first, then probe Docker off the render loop."""
         self._start_probe()
 
     def _start_probe(self) -> None:
@@ -75,9 +179,9 @@ class DockerTUIApp(App[None]):
         self._refreshing = True
         try:
             loading = self.query_one("#loading", Static)
-            loading.update("Probing Docker…")
+            loading.update("Connecting to Docker…")
             loading.display = True
-        except Exception:  # noqa: BLE001 - headless/test contexts
+        except Exception:
             pass
         self.run_worker(self._probe_and_update, exclusive=True, thread=True)
 
@@ -85,10 +189,28 @@ class DockerTUIApp(App[None]):
         try:
             snapshot = services.refresh_snapshot(self._gateway)
             containers = services.list_managed(self._gateway)
-        except Exception as exc:  # noqa: BLE001 - never crash the worker
-            log.debug("Refresh worker failed: %r", exc)
+        except Exception as exc:
+            log.exception("Refresh worker failed: %r", exc)
+            self.call_from_thread(self._probe_failed, str(exc))
             return
         self.call_from_thread(self._show_snapshot, snapshot, containers)
+
+    def _probe_failed(self, detail: str) -> None:
+        self._refreshing = False
+        try:
+            self.query_one("#loading", Static).display = False
+            self.query_one("#status-view", StatusView).show_snapshot(
+                DockerSnapshot(
+                    state=ConnectionState.CONNECTION_FAILED,
+                    summary=None,
+                    detail=f"Refresh failed: {detail}",
+                    endpoint=self._gateway.endpoint,
+                    probed_at=datetime.now(UTC),
+                ),
+                debug=self.diagnostics,
+            )
+        except Exception:
+            pass
 
     def _show_snapshot(
         self, snapshot: DockerSnapshot, containers: list[ManagedContainer] | None = None
@@ -102,74 +224,55 @@ class DockerTUIApp(App[None]):
             )
             note = ""
             if not rows and snapshot.state is not ConnectionState.CONNECTED:
-                note = "No container data while the Engine is unreachable."
-            self.query_one("#container-list", ContainerListView).show_containers(rows, note=note)
-            self._container_index = self.query_one("#container-list", ContainerListView).position
-        except Exception:  # noqa: BLE001 - shutting down
+                note = "Docker is unreachable; container actions are unavailable."
+            view = self.query_one("#container-list", ContainerListView)
+            view.show_containers(rows, note=note)
+            self._container_index = view.position
+        except Exception:
             pass
 
     def _move_selection(self, delta: int) -> None:
-        # Prefer the container list when it has rows; else move status rows.
         try:
             container_view = self.query_one("#container-list", ContainerListView)
-        except Exception:  # noqa: BLE001 - headless/test contexts
+        except Exception:
             container_view = None
         if container_view is not None and container_view.row_texts():
             container_view.move_selection(delta)
             self._container_index = container_view.position
             return
-        # Move highlight across the fixed status rows.
         self._selected_index = max(
             0, min(len(StatusView.FIELD_IDS) - 1, self._selected_index + delta)
         )
-        try:
-            view = self.query_one("#status-view", StatusView)
-            for position, field_id in enumerate(StatusView.FIELD_IDS):
-                row = view.query_one(f"#row-{field_id}", FieldRow)
-                if position == self._selected_index:
-                    row.add_class("selected")
-                else:
-                    row.remove_class("selected")
-        except Exception:  # noqa: BLE001 - headless/test contexts
-            pass
 
     def action_move_down(self) -> None:
-        """Move selection down (j)."""
         self._move_selection(1)
 
     def action_move_up(self) -> None:
-        """Move selection up (k)."""
         self._move_selection(-1)
 
     def action_open_container(self) -> None:
-        """Open details for the highlighted container (Enter)."""
         try:
             selected = self.query_one("#container-list", ContainerListView).selected()
-        except Exception:  # noqa: BLE001 - headless/test contexts
+        except Exception:
             return
         if selected is not None:
             self.push_screen(ContainerDetailsScreen(selected, self._gateway), self._after_details)
 
     def _after_details(self, mutated: bool | None) -> None:
-        """Refresh the list after a mutating details session."""
         if mutated:
             self._start_probe()
 
     def action_refresh(self) -> None:
-        """Manually re-probe Docker (r). No timers; manual-only."""
         self._start_probe()
 
     def action_help(self) -> None:
-        """Open the keyboard help modal (?)."""
         self.push_screen(HelpScreen())
 
     def action_cancel(self) -> None:
-        """Close help or cancel (Esc)."""
         if isinstance(self.screen, HelpScreen):
             self.pop_screen()
 
     def action_quit_app(self) -> None:
-        """Quit cleanly, closing help first when open (q)."""
         if isinstance(self.screen, HelpScreen):
             self.pop_screen()
         else:

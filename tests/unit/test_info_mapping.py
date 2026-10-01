@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from docker_tui.docker_sdk import build_summary
+from deck.docker_sdk import build_summary
 
 
 def test_full_payload_mapping() -> None:

@@ -6,15 +6,15 @@ from datetime import UTC, datetime
 
 import pytest
 
-from docker_tui import services
-from docker_tui.docker_gateway import (
+from deck import services
+from deck.docker_gateway import (
     ConnectionState,
     ContainerStateBucket,
     DockerGateway,
     DockerSnapshot,
     ManagedContainer,
 )
-from docker_tui.tui.screens import ContainerListView
+from deck.tui.screens import ContainerListView
 
 
 def _row(name: str) -> ManagedContainer:
@@ -49,7 +49,7 @@ class FlappingGateway(DockerGateway):
 
     def list_containers(self) -> list[ManagedContainer]:
         if not self.up:
-            from docker_tui.docker_gateway import ContainerOperationError
+            from deck.docker_gateway import ContainerOperationError
 
             raise ContainerOperationError("list", "-", "daemon stopped.", "Retry with r.")
         return [_row("web")]

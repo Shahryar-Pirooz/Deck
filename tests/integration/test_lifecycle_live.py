@@ -6,9 +6,9 @@ import uuid
 
 import pytest
 
-from docker_tui import services
-from docker_tui.docker_gateway import ConnectionState
-from docker_tui.docker_sdk import SdkGateway
+from deck import services
+from deck.docker_gateway import ConnectionState
+from deck.docker_sdk import SdkGateway
 
 pytestmark = pytest.mark.integration
 

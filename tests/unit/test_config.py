@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from docker_tui.config import DEFAULT_ENDPOINT, load_config
+from deck.config import DEFAULT_ENDPOINT, load_config
 
 
 def write_config(tmp_path: Path, text: str) -> Path:

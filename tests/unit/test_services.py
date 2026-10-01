@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from docker_tui import services
-from docker_tui.docker_gateway import (
+from deck import services
+from deck.docker_gateway import (
     ConnectionState,
     DockerGateway,
     DockerSnapshot,

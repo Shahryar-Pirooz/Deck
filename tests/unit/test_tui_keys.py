@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from docker_tui.config import ApplicationConfiguration
-from docker_tui.docker_gateway import (
+from deck.config import ApplicationConfiguration
+from deck.docker_gateway import (
     ConnectionState,
     DockerGateway,
     DockerSnapshot,
 )
-from docker_tui.tui.app import DockerTUIApp
-from docker_tui.tui.screens import HelpScreen, StatusView
+from deck.tui.app import DockerTUIApp
+from deck.tui.screens import HelpScreen, StatusView
 
 
 class FakeGateway(DockerGateway):

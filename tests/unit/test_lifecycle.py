@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from docker_tui import services
-from docker_tui.config import ApplicationConfiguration
-from docker_tui.docker_gateway import (
+from deck import services
+from deck.config import ApplicationConfiguration
+from deck.docker_gateway import (
     ConnectionState,
     ContainerStateBucket,
     DockerGateway,
     DockerSnapshot,
     ManagedContainer,
 )
-from docker_tui.tui.app import DockerTUIApp
-from docker_tui.tui.screens import ConfirmScreen, ContainerDetailsScreen
+from deck.tui.app import DockerTUIApp
+from deck.tui.screens import ConfirmScreen, ContainerDetailsScreen
 
 
 def _row(name: str, status: str = "exited", is_self: bool = False) -> ManagedContainer:

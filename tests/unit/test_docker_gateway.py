@@ -7,12 +7,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from docker_tui.docker_gateway import (
+from deck.docker_gateway import (
     ConnectionState,
     DockerSnapshot,
     DockerSystemSummary,
 )
-from docker_tui.docker_sdk import SdkGateway, classify_error
+from deck.docker_sdk import SdkGateway, classify_error
 
 
 def make_version() -> dict[str, object]:
@@ -39,7 +39,7 @@ def make_client() -> MagicMock:
 def test_success_snapshot_connected() -> None:
     """Faked SDK success yields connected + validated summary counts."""
     gateway = SdkGateway()
-    with patch("docker_tui.docker_sdk.docker.from_env", return_value=make_client()):
+    with patch("deck.docker_sdk.docker.from_env", return_value=make_client()):
         snapshot = gateway.get_snapshot()
     assert snapshot.state is ConnectionState.CONNECTED
     assert snapshot.summary is not None
@@ -73,7 +73,7 @@ def test_summary_rejects_negative_counts() -> None:
 def test_unavailable_on_missing_socket() -> None:
     gateway = SdkGateway()
     with patch(
-        "docker_tui.docker_sdk.docker.from_env",
+        "deck.docker_sdk.docker.from_env",
         side_effect=FileNotFoundError(2, "No such file or directory"),
     ):
         snapshot = gateway.get_snapshot()
@@ -84,7 +84,7 @@ def test_unavailable_on_missing_socket() -> None:
 def test_permission_denied_distinct() -> None:
     gateway = SdkGateway()
     with patch(
-        "docker_tui.docker_sdk.docker.from_env",
+        "deck.docker_sdk.docker.from_env",
         side_effect=PermissionError(13, "Permission denied"),
     ):
         snapshot = gateway.get_snapshot()
@@ -107,7 +107,7 @@ def test_permission_denied_wrapped_in_ping() -> None:
         exc.__cause__ = wrapped
         client.ping.side_effect = exc
     gateway = SdkGateway()
-    with patch("docker_tui.docker_sdk.docker.from_env", return_value=client):
+    with patch("deck.docker_sdk.docker.from_env", return_value=client):
         snapshot = gateway.get_snapshot()
     assert snapshot.state is ConnectionState.PERMISSION_DENIED
 
@@ -115,7 +115,7 @@ def test_permission_denied_wrapped_in_ping() -> None:
 def test_connection_failed_fallback() -> None:
     gateway = SdkGateway()
     with patch(
-        "docker_tui.docker_sdk.docker.from_env",
+        "deck.docker_sdk.docker.from_env",
         side_effect=ConnectionRefusedError("refused"),
     ):
         snapshot = gateway.get_snapshot()

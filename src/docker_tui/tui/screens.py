@@ -7,8 +7,8 @@ from textual.app import ComposeResult
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Header, LoadingIndicator, Static
 
-from docker_tui import services
-from docker_tui.docker_gateway import (
+from deck import services
+from deck.docker_gateway import (
     ConnectionState,
     ContainerOperationError,
     ContainerStateBucket,
@@ -16,7 +16,7 @@ from docker_tui.docker_gateway import (
     DockerSnapshot,
     ManagedContainer,
 )
-from docker_tui.tui.widgets import FieldRow
+from deck.tui.widgets import FieldRow
 
 STATE_LABELS = {
     ConnectionState.CONNECTED: "Connected",

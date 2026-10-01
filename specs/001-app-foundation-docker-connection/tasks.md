@@ -17,7 +17,7 @@
 
 ## Path Conventions
 
-Single project: `src/docker_tui/`, `tests/unit/`, `tests/integration/` at repository root (per plan.md).
+Single project: `src/deck/`, `tests/unit/`, `tests/integration/` at repository root (per plan.md).
 
 ---
 
@@ -25,10 +25,10 @@ Single project: `src/docker_tui/`, `tests/unit/`, `tests/integration/` at reposi
 
 **Purpose**: Project initialization and basic structure
 
-- [X] T001 Create project structure per plan.md (`src/docker_tui/`, `src/docker_tui/tui/`, `tests/unit/`, `tests/integration/`, `specs/001-app-foundation-docker-connection/contracts/`)
-- [X] T002 Initialize Python project with hatchling backend and console script in `pyproject.toml` (`requires-python>=3.11`, `textual~=8.2`, `docker==7.2.0`, `platformdirs>=4.3`, dev `pytest>=8.3 pytest-asyncio>=0.26 pytest-cov>=6 ruff>=0.12 mypy~=1.18`, `[project.scripts] docker-tui`)
-- [X] T003 [P] Configure linting/formatting/type tooling in `pyproject.toml` (`ruff check`, `ruff format`, `mypy --strict` over `src/`, pytest `asyncio_mode=auto`)
-- [X] T004 [P] Configure pytest markers and coverage in `pyproject.toml` (`integration` marker, `--cov=src --cov-fail-under=80`)
+- [x] T001 Create project structure per plan.md (`src/deck/`, `src/deck/tui/`, `tests/unit/`, `tests/integration/`, `specs/001-app-foundation-docker-connection/contracts/`)
+- [x] T002 Initialize Python project with hatchling backend and console script in `pyproject.toml` (`requires-python>=3.11`, `textual~=8.2`, `docker==7.2.0`, `platformdirs>=4.3`, dev `pytest>=8.3 pytest-asyncio>=0.26 pytest-cov>=6 ruff>=0.12 mypy~=1.18`, `[project.scripts] docker-tui`)
+- [x] T003 [P] Configure linting/formatting/type tooling in `pyproject.toml` (`ruff check`, `ruff format`, `mypy --strict` over `src/`, pytest `asyncio_mode=auto`)
+- [x] T004 [P] Configure pytest markers and coverage in `pyproject.toml` (`integration` marker, `--cov=src --cov-fail-under=80`)
 
 ---
 
@@ -38,12 +38,12 @@ Single project: `src/docker_tui/`, `tests/unit/`, `tests/integration/` at reposi
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T005 Define `ConnectionState` enum and `DockerGateway` protocol in `src/docker_tui/docker_gateway.py` (states verbatim: one of `connected`, `unavailable`, `permission-denied`, `connection-failed`; method `get_snapshot() -> (ConnectionState, DockerSystemSummary | None, detail: str)`; MUST NOT leak SDK types)
-- [X] T006 [P] Implement validated `ApplicationConfiguration` dataclass with defaults in `src/docker_tui/config.py` (TOML via stdlib `tomllib`, path `platformdirs.user_config_path("docker-tui")/config.toml`, per-field fallback with user notice, never crash on `TOMLDecodeError`/`OSError`; local-only endpoint rule)
-- [X] T007 [P] Implement stdlib logging with redaction filter in `src/docker_tui/logging_setup.py` (FileHandler at `platformdirs.user_log_path("docker-tui")/docker-tui.log` + console; `--debug` selects DEBUG else INFO; filter redacts `password|token|secret|authorization` to `***REDACTED***` on both handlers)
-- [X] T008 Implement `SdkGateway` in `src/docker_tui/docker_sdk.py` as the ONLY module importing `docker` (init `docker.from_env()` with short timeout and local-only guard `use_context=False`; sequence `ping()` → `version()` → `info()`; map failures per contracts error table; unknown errors → `connection-failed` with redacted message)
-- [X] T009 Implement refresh/status service over the protocol in `src/docker_tui/services.py` (synchronous blocking call intended for Textual worker thread; returns frozen snapshot dataclass per `data-model.md`)
-- [X] T010 Implement CLI entry point in `src/docker_tui/cli.py` (`docker-tui` with `--debug` and `--config <path>` flags; renders layout before probe; exit `0` on clean quit, non-zero only on fatal init with concise message)
+- [x] T005 Define `ConnectionState` enum and `DockerGateway` protocol in `src/deck/docker_gateway.py` (states verbatim: one of `connected`, `unavailable`, `permission-denied`, `connection-failed`; method `get_snapshot() -> (ConnectionState, DockerSystemSummary | None, detail: str)`; MUST NOT leak SDK types)
+- [x] T006 [P] Implement validated `ApplicationConfiguration` dataclass with defaults in `src/deck/config.py` (TOML via stdlib `tomllib`, path `platformdirs.user_config_path("docker-tui")/config.toml`, per-field fallback with user notice, never crash on `TOMLDecodeError`/`OSError`; local-only endpoint rule)
+- [x] T007 [P] Implement stdlib logging with redaction filter in `src/deck/logging_setup.py` (FileHandler at `platformdirs.user_log_path("docker-tui")/docker-tui.log` + console; `--debug` selects DEBUG else INFO; filter redacts `password|token|secret|authorization` to `***REDACTED***` on both handlers)
+- [x] T008 Implement `SdkGateway` in `src/deck/docker_sdk.py` as the ONLY module importing `docker` (init `docker.from_env()` with short timeout and local-only guard `use_context=False`; sequence `ping()` → `version()` → `info()`; map failures per contracts error table; unknown errors → `connection-failed` with redacted message)
+- [x] T009 Implement refresh/status service over the protocol in `src/deck/services.py` (synchronous blocking call intended for Textual worker thread; returns frozen snapshot dataclass per `data-model.md`)
+- [x] T010 Implement CLI entry point in `src/deck/cli.py` (`docker-tui` with `--debug` and `--config <path>` flags; renders layout before probe; exit `0` on clean quit, non-zero only on fatal init with concise message)
 
 **Checkpoint**: Foundation ready — `DockerGateway` seam, config, logging, SDK adapter, service, CLI all importable; user story implementation can now begin.
 
@@ -59,16 +59,16 @@ Single project: `src/docker_tui/`, `tests/unit/`, `tests/integration/` at reposi
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T011 [P] [US1] Unit test for connection success snapshot in `tests/unit/test_docker_gateway.py` (faked gateway returns `connected` with version/OS/arch/counts per `data-model.md` validation: counts are non-negative ints, `running + stopped ≤ total`)
-- [X] T012 [P] [US1] Unit test for info retrieval field mapping in `tests/unit/test_info_mapping.py` (`Version`→version, `ApiVersion`→api_version, `Os`/`Arch`, `Containers`/`ContainersRunning`/`ContainersStopped`/`Images`; missing `api_version` → null displayed as unavailable)
-- [X] T013 [P] [US1] Integration test for launch-with-Docker-running in `tests/integration/test_startup_live.py` (`-m integration`, Textual Pilot `run_test()`: header/status/footer visible, summary values populated)
+- [x] T011 [P] [US1] Unit test for connection success snapshot in `tests/unit/test_docker_gateway.py` (faked gateway returns `connected` with version/OS/arch/counts per `data-model.md` validation: counts are non-negative ints, `running + stopped ≤ total`)
+- [x] T012 [P] [US1] Unit test for info retrieval field mapping in `tests/unit/test_info_mapping.py` (`Version`→version, `ApiVersion`→api_version, `Os`/`Arch`, `Containers`/`ContainersRunning`/`ContainersStopped`/`Images`; missing `api_version` → null displayed as unavailable)
+- [x] T013 [P] [US1] Integration test for launch-with-Docker-running in `tests/integration/test_startup_live.py` (`-m integration`, Textual Pilot `run_test()`: header/status/footer visible, summary values populated)
 
 ### Implementation for User Story 1
 
-- [X] T014 [P] [US1] Create status screen layout in `src/docker_tui/tui/screens.py` (header, Docker Status area with mandatory fields: Engine version, OS/platform, architecture, container counts total/running/stopped, image count, API version if available else unavailable, footer with shortcut hints)
-- [X] T015 [P] [US1] Create status/error/loading row widgets in `src/docker_tui/tui/widgets.py` (loading indicator for slow probe; missing fields shown as unavailable, never blank/crash)
-- [X] T016 [US1] Wire Textual App startup in `src/docker_tui/tui/app.py` (render layout first, probe Docker in worker thread via service, populate status; depends on T014, T015, T009)
-- [X] T017 [US1] Add startup logging for status probe in `src/docker_tui/services.py` (log endpoint probed + state at INFO, full chain at DEBUG through redaction filter)
+- [x] T014 [P] [US1] Create status screen layout in `src/deck/tui/screens.py` (header, Docker Status area with mandatory fields: Engine version, OS/platform, architecture, container counts total/running/stopped, image count, API version if available else unavailable, footer with shortcut hints)
+- [x] T015 [P] [US1] Create status/error/loading row widgets in `src/deck/tui/widgets.py` (loading indicator for slow probe; missing fields shown as unavailable, never blank/crash)
+- [x] T016 [US1] Wire Textual App startup in `src/deck/tui/app.py` (render layout first, probe Docker in worker thread via service, populate status; depends on T014, T015, T009)
+- [x] T017 [US1] Add startup logging for status probe in `src/deck/services.py` (log endpoint probed + state at INFO, full chain at DEBUG through redaction filter)
 
 **Checkpoint**: US1 fully functional — `docker-tui` with live daemon shows complete Engine summary; testable independently.
 
@@ -84,14 +84,14 @@ Single project: `src/docker_tui/`, `tests/unit/`, `tests/integration/` at reposi
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T018 [P] [US2] Unit test for daemon-unavailable mapping in `tests/unit/test_docker_gateway.py` (missing socket `FileNotFoundError` ENOENT / `DockerException: Error while fetching server API version` → `unavailable` with remediation detail)
-- [X] T019 [P] [US2] Unit test for permission-denied mapping in `tests/unit/test_docker_gateway.py` (`PermissionError` EACCES in `__cause__`/`__context__` chain or `permission denied` substring → `permission-denied` distinctly from `connection-failed`)
-- [X] T020 [P] [US2] Unit test for connection-failed fallback in `tests/unit/test_docker_gateway.py` (refused/reset, `requests.ConnectionError`, `APIError(5xx)`, unknown → `connection-failed`, no SDK types leak)
+- [x] T018 [P] [US2] Unit test for daemon-unavailable mapping in `tests/unit/test_docker_gateway.py` (missing socket `FileNotFoundError` ENOENT / `DockerException: Error while fetching server API version` → `unavailable` with remediation detail)
+- [x] T019 [P] [US2] Unit test for permission-denied mapping in `tests/unit/test_docker_gateway.py` (`PermissionError` EACCES in `__cause__`/`__context__` chain or `permission denied` substring → `permission-denied` distinctly from `connection-failed`)
+- [x] T020 [P] [US2] Unit test for connection-failed fallback in `tests/unit/test_docker_gateway.py` (refused/reset, `requests.ConnectionError`, `APIError(5xx)`, unknown → `connection-failed`, no SDK types leak)
 
 ### Implementation for User Story 2
 
-- [X] T021 [US2] Implement error-state rendering in `src/docker_tui/tui/screens.py` (status + cause category + next-step guidance for each of `unavailable`, `permission-denied`, `connection-failed`; normal mode hides tracebacks; depends on T014)
-- [X] T022 [US2] Harden startup/shutdown paths in `src/docker_tui/tui/app.py` (failed probe never blocks render; fatal init errors exit non-zero with concise message; terminal restored)
+- [x] T021 [US2] Implement error-state rendering in `src/deck/tui/screens.py` (status + cause category + next-step guidance for each of `unavailable`, `permission-denied`, `connection-failed`; normal mode hides tracebacks; depends on T014)
+- [x] T022 [US2] Harden startup/shutdown paths in `src/deck/tui/app.py` (failed probe never blocks render; fatal init errors exit non-zero with concise message; terminal restored)
 
 **Checkpoint**: US1 AND US2 both work — connected and all three failure states verified independently.
 
@@ -107,13 +107,13 @@ Single project: `src/docker_tui/`, `tests/unit/`, `tests/integration/` at reposi
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T023 [P] [US3] Unit test for refresh state transitions in `tests/unit/test_services.py` (any state → any state on manual refresh; pre-probe initial state is `unavailable` with `detail="Probing…"`)
-- [X] T024 [P] [US3] Integration test for manual refresh via Pilot in `tests/integration/test_refresh_live.py` (`-m integration`: `press("r")`, external state change reflected, failed refresh keeps previous display unbroken with actionable error)
+- [x] T023 [P] [US3] Unit test for refresh state transitions in `tests/unit/test_services.py` (any state → any state on manual refresh; pre-probe initial state is `unavailable` with `detail="Probing…"`)
+- [x] T024 [P] [US3] Integration test for manual refresh via Pilot in `tests/integration/test_refresh_live.py` (`-m integration`: `press("r")`, external state change reflected, failed refresh keeps previous display unbroken with actionable error)
 
 ### Implementation for User Story 3
 
-- [X] T025 [US3] Bind `r` to worker-thread refresh in `src/docker_tui/tui/app.py` (dispatches `services` refresh off render loop with timeout; shows loading indicator when slow; manual-only — no timers/interval config; depends on T016)
-- [X] T026 [US3] Handle mid-session daemon stop/permission loss in `src/docker_tui/services.py` (next refresh returns `unavailable` / distinct `permission-denied` without freeze)
+- [x] T025 [US3] Bind `r` to worker-thread refresh in `src/deck/tui/app.py` (dispatches `services` refresh off render loop with timeout; shows loading indicator when slow; manual-only — no timers/interval config; depends on T016)
+- [x] T026 [US3] Handle mid-session daemon stop/permission loss in `src/deck/services.py` (next refresh returns `unavailable` / distinct `permission-denied` without freeze)
 
 **Checkpoint**: Refresh loop verified — live state changes surface correctly without blocking input.
 
@@ -129,13 +129,13 @@ Single project: `src/docker_tui/`, `tests/unit/`, `tests/integration/` at reposi
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T027 [P] [US4] TUI test for Vim movement and help open/close in `tests/unit/test_tui_keys.py` (Pilot: `j`/`k` move selection visibly; `?` opens help, `Esc`/`q` closes and returns focus — no daemon needed via `FakeGateway`)
-- [X] T028 [P] [US4] TUI test for clean quit and signal handling in `tests/unit/test_shutdown.py` (`q` terminates promptly releasing Docker/background resources and restoring terminal; termination signal during refresh cleans up)
+- [x] T027 [P] [US4] TUI test for Vim movement and help open/close in `tests/unit/test_tui_keys.py` (Pilot: `j`/`k` move selection visibly; `?` opens help, `Esc`/`q` closes and returns focus — no daemon needed via `FakeGateway`)
+- [x] T028 [P] [US4] TUI test for clean quit and signal handling in `tests/unit/test_shutdown.py` (`q` terminates promptly releasing Docker/background resources and restoring terminal; termination signal during refresh cleans up)
 
 ### Implementation for User Story 4
 
-- [X] T029 [US4] Declare baseline bindings in `src/docker_tui/tui/app.py` (`j` down, `k` up, `r` refresh, `?` help, `q` quit, `Esc` close/cancel; resize reflows without overlap at ≥80x24; keyboard-only acceptance, mouse optional)
-- [X] T030 [US4] Implement help modal in `src/docker_tui/tui/screens.py` (lists all shortcuts; `Esc`/`q` closes with focus return; depends on T014)
+- [x] T029 [US4] Declare baseline bindings in `src/deck/tui/app.py` (`j` down, `k` up, `r` refresh, `?` help, `q` quit, `Esc` close/cancel; resize reflows without overlap at ≥80x24; keyboard-only acceptance, mouse optional)
+- [x] T030 [US4] Implement help modal in `src/deck/tui/screens.py` (lists all shortcuts; `Esc`/`q` closes with focus return; depends on T014)
 
 **Checkpoint**: Baseline interaction language complete — every later screen inherits these bindings.
 
@@ -151,14 +151,14 @@ Single project: `src/docker_tui/`, `tests/unit/`, `tests/integration/` at reposi
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T031 [P] [US5] Unit test for config defaults and persistence in `tests/unit/test_config.py` (no file → defaults; valid edits survive relaunch; schema `[docker] endpoint`, `[display] theme = "dark" | "light"`, `[logging] debug = bool`)
-- [X] T032 [P] [US5] Unit test for per-field fallback in `tests/unit/test_config.py` (invalid TOML / bad single value → defaults for that field only, startup continues, user informed; unknown keys ignored; remote endpoint values rejected with notice)
-- [X] T033 [P] [US5] Unit test for log redaction filter in `tests/unit/test_logging.py` (values matching `password|token|secret|authorization` rendered `***REDACTED***` on both handlers; raw env/args never logged)
+- [x] T031 [P] [US5] Unit test for config defaults and persistence in `tests/unit/test_config.py` (no file → defaults; valid edits survive relaunch; schema `[docker] endpoint`, `[display] theme = "dark" | "light"`, `[logging] debug = bool`)
+- [x] T032 [P] [US5] Unit test for per-field fallback in `tests/unit/test_config.py` (invalid TOML / bad single value → defaults for that field only, startup continues, user informed; unknown keys ignored; remote endpoint values rejected with notice)
+- [x] T033 [P] [US5] Unit test for log redaction filter in `tests/unit/test_logging.py` (values matching `password|token|secret|authorization` rendered `***REDACTED***` on both handlers; raw env/args never logged)
 
 ### Implementation for User Story 5
 
-- [X] T034 [US5] Wire config load/merge into startup in `src/docker_tui/cli.py` (apply `--config` override, per-field `dict.get(key, default)` merge, notice on ignored values; depends on T006, T010)
-- [X] T035 [US5] Wire debug verbosity in `src/docker_tui/tui/screens.py` (debug shows human-readable cause + endpoint probed + hints with secrets redacted; log file always has complete detail; normal mode stays concise; depends on T021)
+- [x] T034 [US5] Wire config load/merge into startup in `src/deck/cli.py` (apply `--config` override, per-field `dict.get(key, default)` merge, notice on ignored values; depends on T006, T010)
+- [x] T035 [US5] Wire debug verbosity in `src/deck/tui/screens.py` (debug shows human-readable cause + endpoint probed + hints with secrets redacted; log file always has complete detail; normal mode stays concise; depends on T021)
 
 **Checkpoint**: All user stories independently functional — config loop closed.
 
@@ -168,10 +168,10 @@ Single project: `src/docker_tui/`, `tests/unit/`, `tests/integration/` at reposi
 
 **Purpose**: Improvements affecting multiple user stories
 
-- [X] T036 [P] Update user documentation in `README.md` (install via `pip install -e ".[dev]"`, `docker-tui` usage, keyboard table, config path, debug/log behavior — actual implemented behavior only)
-- [X] T037 Run full `quickstart.md` validation scenarios in `specs/001-app-foundation-docker-connection/quickstart.md` (launch, unavailable, refresh, keys/help/quit, config/debug, quality gates)
-- [X] T038 [P] Harden tiny-terminal and partial-info edge cases in `src/docker_tui/tui/screens.py` (60x15 reflow, resize mid-display, partial Engine payloads → unavailable labels per edge cases)
-- [X] T039 Verify quality gates: `pytest tests/unit -q`, `pytest -m "not integration" -q`, `ruff check .`, `ruff format --check .`, `mypy src` (all green; integration suite skipped without daemon)
+- [x] T036 [P] Update user documentation in `README.md` (install via `pip install -e ".[dev]"`, `docker-tui` usage, keyboard table, config path, debug/log behavior — actual implemented behavior only)
+- [x] T037 Run full `quickstart.md` validation scenarios in `specs/001-app-foundation-docker-connection/quickstart.md` (launch, unavailable, refresh, keys/help/quit, config/debug, quality gates)
+- [x] T038 [P] Harden tiny-terminal and partial-info edge cases in `src/deck/tui/screens.py` (60x15 reflow, resize mid-display, partial Engine payloads → unavailable labels per edge cases)
+- [x] T039 Verify quality gates: `pytest tests/unit -q`, `pytest -m "not integration" -q`, `ruff check .`, `ruff format --check .`, `mypy src` (all green; integration suite skipped without daemon)
 
 ---
 
@@ -222,8 +222,8 @@ Task: "Unit test for info retrieval field mapping in tests/unit/test_info_mappin
 Task: "Integration test for launch-with-Docker-running in tests/integration/test_startup_live.py"
 
 # Launch all UI pieces for User Story 1 together:
-Task: "Create status screen layout in src/docker_tui/tui/screens.py"
-Task: "Create status/error/loading row widgets in src/docker_tui/tui/widgets.py"
+Task: "Create status screen layout in src/deck/tui/screens.py"
+Task: "Create status/error/loading row widgets in src/deck/tui/widgets.py"
 ```
 
 ---

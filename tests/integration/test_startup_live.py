@@ -6,9 +6,9 @@ import socket
 
 import pytest
 
-from docker_tui.config import ApplicationConfiguration
-from docker_tui.docker_sdk import SdkGateway
-from docker_tui.tui.app import DockerTUIApp
+from deck.config import ApplicationConfiguration
+from deck.docker_sdk import SdkGateway
+from deck.tui.app import DockerTUIApp
 
 pytestmark = pytest.mark.integration
 
@@ -19,7 +19,7 @@ def _daemon_reachable() -> bool:
         snapshot = gateway.get_snapshot()
     except Exception:  # noqa: BLE001 - any failure means "no live daemon"
         return False
-    from docker_tui.docker_gateway import ConnectionState
+    from deck.docker_gateway import ConnectionState
 
     return snapshot.state is ConnectionState.CONNECTED
 

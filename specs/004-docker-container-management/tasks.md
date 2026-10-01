@@ -20,9 +20,9 @@ tests are marked integration.
 
 **Purpose**: Packaging scaffold and baseline verification
 
-- [X] T001 Create container image definition in Dockerfile (repo root: minimal Python 3.11 base, install package, `docker-tui` entrypoint, versioned tags)
-- [X] T002 [P] Add .dockerignore at repo root (exclude .venv, tests artifacts, caches)
-- [X] T003 [P] Verify baseline gates per specs/004-docker-container-management/quickstart.md (pytest tests/unit -q, ruff check, mypy src)
+- [x] T001 Create container image definition in Dockerfile (repo root: minimal Python 3.11 base, install package, `docker-tui` entrypoint, versioned tags)
+- [x] T002 [P] Add .dockerignore at repo root (exclude .venv, tests artifacts, caches)
+- [x] T003 [P] Verify baseline gates per specs/004-docker-container-management/quickstart.md (pytest tests/unit -q, ruff check, mypy src)
 
 ---
 
@@ -32,10 +32,10 @@ tests are marked integration.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T004 Extend DockerGateway protocol with container types and operation signatures in src/docker_tui/docker_gateway.py (ManagedContainer with "`state_bucket` running|stopped|other", "`name` non-empty", "`is_self` boolean"; operations list/details/logs/lifecycle per contracts/gateway-operations.md)
-- [X] T005 [P] Implement container list, details, and bounded log-tail fetching in src/docker_tui/docker_sdk.py (depends on T004; logs "bounded tail (never unbounded load)")
-- [X] T006 [P] Implement container service operations and best-effort self-identification in src/docker_tui/services.py (depends on T004; guards fail safe with warnings when undetermined)
-- [X] T007 Add unit tests for state-bucket mapping, self-block rule, and error-state mapping in tests/unit/test_containers.py (depends on T004–T006)
+- [x] T004 Extend DockerGateway protocol with container types and operation signatures in src/deck/docker_gateway.py (ManagedContainer with "`state_bucket` running|stopped|other", "`name` non-empty", "`is_self` boolean"; operations list/details/logs/lifecycle per contracts/gateway-operations.md)
+- [x] T005 [P] Implement container list, details, and bounded log-tail fetching in src/deck/docker_sdk.py (depends on T004; logs "bounded tail (never unbounded load)")
+- [x] T006 [P] Implement container service operations and best-effort self-identification in src/deck/services.py (depends on T004; guards fail safe with warnings when undetermined)
+- [x] T007 Add unit tests for state-bucket mapping, self-block rule, and error-state mapping in tests/unit/test_containers.py (depends on T004–T006)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -51,14 +51,14 @@ tests are marked integration.
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T008 [P] [US1] Unit test for container list including self flag and unavailable guidance in tests/unit/test_container_list.py
-- [X] T009 [P] [US1] Integration test for containerized run with and without Engine access in tests/integration/test_containerized_run.py
+- [x] T008 [P] [US1] Unit test for container list including self flag and unavailable guidance in tests/unit/test_container_list.py
+- [x] T009 [P] [US1] Integration test for containerized run with and without Engine access in tests/integration/test_containerized_run.py
 
 ### Implementation for User Story 1
 
-- [X] T010 [P] [US1] Implement container list screen (name, image, running/stopped/other) in src/docker_tui/tui/screens.py (depends on T004, T006)
-- [X] T011 [US1] Wire list screen with j/k navigation, Enter open, and r refresh in src/docker_tui/tui/app.py (depends on T010)
-- [X] T012 [US1] Show unavailable-state guidance for missing Engine access in src/docker_tui/tui/screens.py (depends on T010)
+- [x] T010 [P] [US1] Implement container list screen (name, image, running/stopped/other) in src/deck/tui/screens.py (depends on T004, T006)
+- [x] T011 [US1] Wire list screen with j/k navigation, Enter open, and r refresh in src/deck/tui/app.py (depends on T010)
+- [x] T012 [US1] Show unavailable-state guidance for missing Engine access in src/deck/tui/screens.py (depends on T010)
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -72,15 +72,15 @@ tests are marked integration.
 
 ### Tests for User Story 2
 
-- [X] T013 [P] [US2] Unit tests for start/stop/restart, remove-confirmation flow, and self-block in tests/unit/test_lifecycle.py
-- [X] T014 [P] [US2] Integration test for lifecycle on a live daemon in tests/integration/test_lifecycle_live.py
+- [x] T013 [P] [US2] Unit tests for start/stop/restart, remove-confirmation flow, and self-block in tests/unit/test_lifecycle.py
+- [x] T014 [P] [US2] Integration test for lifecycle on a live daemon in tests/integration/test_lifecycle_live.py
 
 ### Implementation for User Story 2
 
-- [X] T015 [P] [US2] Implement start/stop/restart/remove in src/docker_tui/docker_sdk.py (remove executes only with confirmation; depends on T004)
-- [X] T016 [P] [US2] Implement lifecycle service actions and confirmation flow in src/docker_tui/services.py (depends on T004)
-- [X] T017 [US2] Add action keys and confirmation modal wiring in src/docker_tui/tui/app.py (depends on T015, T016)
-- [X] T018 [P] [US2] Add confirmation modal view in src/docker_tui/tui/screens.py (depends on contracts/gateway-operations.md invariants)
+- [x] T015 [P] [US2] Implement start/stop/restart/remove in src/deck/docker_sdk.py (remove executes only with confirmation; depends on T004)
+- [x] T016 [P] [US2] Implement lifecycle service actions and confirmation flow in src/deck/services.py (depends on T004)
+- [x] T017 [US2] Add action keys and confirmation modal wiring in src/deck/tui/app.py (depends on T015, T016)
+- [x] T018 [P] [US2] Add confirmation modal view in src/deck/tui/screens.py (depends on contracts/gateway-operations.md invariants)
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -94,13 +94,13 @@ tests are marked integration.
 
 ### Tests for User Story 3
 
-- [X] T019 [P] [US3] Unit tests for details/logs mapping in tests/unit/test_container_inspect.py
-- [X] T020 [P] [US3] Integration test for log fetching on a live daemon in tests/integration/test_container_logs_live.py
+- [x] T019 [P] [US3] Unit tests for details/logs mapping in tests/unit/test_container_inspect.py
+- [x] T020 [P] [US3] Integration test for log fetching on a live daemon in tests/integration/test_container_logs_live.py
 
 ### Implementation for User Story 3
 
-- [X] T021 [P] [US3] Implement details and logs views in src/docker_tui/tui/screens.py (exact status from "`exact_status` verbatim Engine status")
-- [X] T022 [US3] Wire details/logs opening with loading state in src/docker_tui/tui/app.py (depends on T021)
+- [x] T021 [P] [US3] Implement details and logs views in src/deck/tui/screens.py (exact status from "`exact_status` verbatim Engine status")
+- [x] T022 [US3] Wire details/logs opening with loading state in src/deck/tui/app.py (depends on T021)
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -110,11 +110,11 @@ tests are marked integration.
 
 **Purpose**: Docs, scale validation, and full gates
 
-- [X] T023 [P] Update help view with new bindings in src/docker_tui/tui/screens.py
-- [X] T024 [P] Document run configuration, privilege warning, and failure modes in README.md
-- [X] T025 Validate 100-container navigation per specs/004-docker-container-management/quickstart.md (smooth j/k, one refresh round-trip per r)
-- [X] T026 [P] Add edge-case unit tests (daemon stops mid-session, non-interactive terminal, undetermined self-id) in tests/unit/test_container_edge_cases.py
-- [X] T027 Run full gates per specs/004-docker-container-management/quickstart.md (pytest, ruff check, ruff format --check, mypy src)
+- [x] T023 [P] Update help view with new bindings in src/deck/tui/screens.py
+- [x] T024 [P] Document run configuration, privilege warning, and failure modes in README.md
+- [x] T025 Validate 100-container navigation per specs/004-docker-container-management/quickstart.md (smooth j/k, one refresh round-trip per r)
+- [x] T026 [P] Add edge-case unit tests (daemon stops mid-session, non-interactive terminal, undetermined self-id) in tests/unit/test_container_edge_cases.py
+- [x] T027 Run full gates per specs/004-docker-container-management/quickstart.md (pytest, ruff check, ruff format --check, mypy src)
 
 ---
 
@@ -162,7 +162,7 @@ Task: "Unit test for container list including self flag and unavailable guidance
 Task: "Integration test for containerized run with and without Engine access in tests/integration/test_containerized_run.py"
 
 # Implementation follows foundation:
-Task: "Implement container list screen (name, image, running/stopped/other) in src/docker_tui/tui/screens.py"
+Task: "Implement container list screen (name, image, running/stopped/other) in src/deck/tui/screens.py"
 ```
 
 ---

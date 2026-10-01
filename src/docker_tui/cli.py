@@ -7,12 +7,12 @@ import logging
 import sys
 from pathlib import Path
 
-from docker_tui import __version__
-from docker_tui.config import ApplicationConfiguration, default_config_path, load_config
-from docker_tui.docker_gateway import DockerGateway
-from docker_tui.docker_sdk import SdkGateway
-from docker_tui.logging_setup import setup_logging
-from docker_tui.tui.app import DockerTUIApp
+from deck import __version__
+from deck.config import ApplicationConfiguration, default_config_path, load_config
+from deck.docker_gateway import DockerGateway
+from deck.docker_sdk import SdkGateway
+from deck.logging_setup import setup_logging
+from deck.tui.app import DockerTUIApp
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI flags."""
     parser = argparse.ArgumentParser(
         prog="Deck",
-        description="Keyboard-first terminal UI for local Docker Engine state.",
+        description="Keyboard-first terminal UI for managing the local Docker Engine.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(

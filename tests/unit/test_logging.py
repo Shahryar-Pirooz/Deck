@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from docker_tui.logging_setup import RedactionFilter, setup_logging
+from deck.logging_setup import RedactionFilter, setup_logging
 
 
 def test_redaction_filter_masks_credentials() -> None:

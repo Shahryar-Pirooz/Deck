@@ -8,8 +8,8 @@ from types import SimpleNamespace
 import pytest
 from docker.errors import APIError
 
-from docker_tui import services
-from docker_tui.docker_gateway import (
+from deck import services
+from deck.docker_gateway import (
     ConnectionState,
     ContainerLogView,
     ContainerOperationError,
@@ -19,7 +19,7 @@ from docker_tui.docker_gateway import (
     ManagedContainer,
     bucket_for_status,
 )
-from docker_tui.docker_sdk import _operation_error, build_managed
+from deck.docker_sdk import _operation_error, build_managed
 
 
 def _row(name: str = "web", status: str = "running", self: bool = False) -> ManagedContainer:
@@ -218,6 +218,6 @@ def test_operation_error_maps_permission() -> None:
 
 
 def test_not_running_in_container_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("DOCKER_TUI_CONTAINER", raising=False)
+    monkeypatch.delenv("DECK_CONTAINER", raising=False)
     monkeypatch.setattr(services.os.path, "exists", lambda _: False)
     assert services.is_running_in_container() is False

@@ -21,7 +21,7 @@ running/stopped/other for up to 100 siblings.
 3.11 idioms: `StrEnum`, `datetime.UTC`, `X | None`)
 
 **Primary Dependencies**: `textual~=8.2` (TUI), `docker==7.2.0` (Engine SDK, imported
-only in `src/docker_tui/docker_sdk.py`), `platformdirs>=4.3` (config paths). No new
+only in `src/deck/docker_sdk.py`), `platformdirs>=4.3` (config paths). No new
 runtime dependencies planned.
 
 **Storage**: N/A — no app persistence. Docker Engine is the source of truth (queried
@@ -50,41 +50,41 @@ actions confirmed; self stop/remove blocked.
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 - [x] **I. Docker is source of truth** — list/details/logs re-queried per refresh;
-  no cached persistent container state.before
+      no cached persistent container state.before
 - [x] **II. Layered interface** — new operations exposed as application commands /
-  services; TUI calls services, services call `DockerGateway` protocol, only
-  `docker_sdk.py` touches the SDK.
+      services; TUI calls services, services call `DockerGateway` protocol, only
+      `docker_sdk.py` touches the SDK.
 - [x] **III. Safety over convenience (NON-NEGOTIABLE)** — remove requires explicit
-  confirmation (FR-006); self stop/remove blocked with message (FR-007); run
-  documentation warns shared Engine access grants full host control (FR-002).
+      confirmation (FR-006); self stop/remove blocked with message (FR-007); run
+      documentation warns shared Engine access grants full host control (FR-002).
 - [x] **IV. Keyboard first (NON-NEGOTIABLE)** — all new actions keyboard-reachable;
-  new bindings follow the Vim baseline (`Enter` open/select, `r` refresh, `?` help,
-  `Esc` cancel, `q` quit); new keys documented and tested.
+      new bindings follow the Vim baseline (`Enter` open/select, `r` refresh, `?` help,
+      `Esc` cancel, `q` quit); new keys documented and tested.
 - [x] **V. TUI first** — same Textual app inside the container; interactive terminal
-  required and reported when absent; no graphical dependency.
+      required and reported when absent; no graphical dependency.
 - [x] **VI. Simple ops stay simple** — start/stop/restart/logs reachable with minimal
-  interaction from the list.
+      interaction from the list.
 - [x] **Adapter isolation** — gateway protocol extended; no SDK types leak past
-  `docker_sdk.py`.
+      `docker_sdk.py`.
 - [x] **Security** — permission problems detected and reported; no secrets logged
-  (endpoint labels only); privileged run configuration documented with warning.
+      (endpoint labels only); privileged run configuration documented with warning.
 - [x] **Error handling** — actionable messages (what/which/why/next), no raw
-  tracebacks in normal mode, debug detail preserved.
+      tracebacks in normal mode, debug detail preserved.
 - [x] **Testing** — unit tests via fake gateway (no daemon); live-daemon integration
-  tests marked; TUI keybinding tests for new actions.
+      tests marked; TUI keybinding tests for new actions.
 - [x] **Performance** — worker-thread queries, single list call per refresh, lazy
-  log fetching.
+      log fetching.
 - [x] **Dependencies** — no new runtime dependencies; image base is build packaging,
-  not an app dependency.
+      not an app dependency.
 - [x] **Documentation** — run configuration, shortcuts, failure modes, and security
-  implications documented (quickstart + contracts).
+      implications documented (quickstart + contracts).
 
-*Post-design re-check (after Phase 1): no new violations introduced — data model keeps
+_Post-design re-check (after Phase 1): no new violations introduced — data model keeps
 Engine-query semantics, contracts preserve the adapter boundary, quickstart validates
-safety gates end to end.*
+safety gates end to end._
 
 ## Project Structure
 
@@ -103,7 +103,7 @@ specs/004-docker-container-management/
 ### Source Code (repository root)
 
 ```text
-src/docker_tui/
+src/deck/
 ├── cli.py            # entry point; builds SdkGateway from config
 ├── config.py         # validated TOML config (endpoint/display/debug)
 ├── docker_gateway.py # DockerGateway protocol + snapshot/summary types (extend here)
@@ -119,7 +119,7 @@ tests/
 └── integration/      # live-daemon tests: lifecycle, logs, list (marked)
 ```
 
-**Structure Decision**: Single-project layout (existing `src/docker_tui` package).
+**Structure Decision**: Single-project layout (existing `src/deck` package).
 New packaging artifact (container image definition) lives at the repository root
 alongside `pyproject.toml`; no new top-level project is created.
 
@@ -128,5 +128,5 @@ alongside `pyproject.toml`; no new top-level project is created.
 > No Constitution Check violations — this section is intentionally empty.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| — | — | — |
+| --------- | ---------- | ------------------------------------ |
+| —         | —          | —                                    |

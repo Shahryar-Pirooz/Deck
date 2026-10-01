@@ -7,9 +7,9 @@ from typing import Any
 
 import pytest
 
-from docker_tui import services
-from docker_tui.docker_gateway import ContainerOperationError, ContainerStateBucket
-from docker_tui.docker_sdk import SdkGateway
+from deck import services
+from deck.docker_gateway import ContainerOperationError, ContainerStateBucket
+from deck.docker_sdk import SdkGateway
 
 
 class FakeNative:
@@ -173,8 +173,8 @@ def test_list_managed_marks_self(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_running_in_container_markers(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DOCKER_TUI_CONTAINER", "1")
+    monkeypatch.setenv("DECK_CONTAINER", "1")
     assert services.is_running_in_container() is True
-    monkeypatch.delenv("DOCKER_TUI_CONTAINER")
+    monkeypatch.delenv("DECK_CONTAINER")
     monkeypatch.setattr(services.os.path, "exists", lambda _: True)
     assert services.is_running_in_container() is True

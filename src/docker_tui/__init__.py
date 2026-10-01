@@ -1,3 +1,3 @@
-"""Docker TUI Manager — keyboard-first terminal UI for local Docker Engine state."""
+"""Deck — a keyboard-first Docker Engine terminal manager."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

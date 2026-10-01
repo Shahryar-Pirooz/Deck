@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from docker_tui.config import ApplicationConfiguration
-from docker_tui.docker_gateway import (
+from deck.config import ApplicationConfiguration
+from deck.docker_gateway import (
     ConnectionState,
     ContainerLogView,
     ContainerOperationError,
@@ -14,8 +14,8 @@ from docker_tui.docker_gateway import (
     DockerSnapshot,
     ManagedContainer,
 )
-from docker_tui.tui.app import DockerTUIApp
-from docker_tui.tui.screens import ContainerDetailsScreen
+from deck.tui.app import DockerTUIApp
+from deck.tui.screens import ContainerDetailsScreen
 
 
 def _row(name: str = "web", status: str = "running") -> ManagedContainer:

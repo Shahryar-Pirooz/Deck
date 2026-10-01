@@ -8,7 +8,7 @@ from pathlib import Path
 
 import platformdirs
 
-from docker_tui.config import APP_NAME
+from deck.config import APP_NAME
 
 _REDACT_PATTERN = re.compile(
     r"(?i)(password|passwd|token|secret|authorization|api[_-]?key)\s*[:=]\s*"

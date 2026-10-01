@@ -11,7 +11,7 @@ import os
 import socket
 from dataclasses import replace
 
-from docker_tui.docker_gateway import (
+from deck.docker_gateway import (
     ContainerOperationError,
     DockerGateway,
     DockerSnapshot,
@@ -27,7 +27,7 @@ class SelfActionBlocked(Exception):
 
 def is_running_in_container() -> bool:
     """Best-effort detection of running inside a container."""
-    if os.environ.get("DOCKER_TUI_CONTAINER") == "1":
+    if os.environ.get("DECK_CONTAINER") == "1":
         return True
     try:
         return os.path.exists("/.dockerenv")

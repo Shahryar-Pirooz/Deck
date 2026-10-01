@@ -1,7 +1,7 @@
 """App-owned Docker connectivity seam.
 
 The TUI and services depend only on the protocol defined here. The concrete
-SDK implementation lives in :mod:`docker_tui.docker_sdk`, which is the single
+SDK implementation lives in :mod:`deck.docker_sdk`, which is the single
 module allowed to import the ``docker`` package.
 """
 

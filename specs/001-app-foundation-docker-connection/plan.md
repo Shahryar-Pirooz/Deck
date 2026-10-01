@@ -50,26 +50,26 @@ secrets always redacted; dead daemon never blocks/crashes startup.
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle | Status | Evidence |
-|-----------|--------|----------|
-| I. Docker is source of truth | PASS | In-memory snapshot per refresh only; no persistent Docker representation (`data-model.md`) |
-| II. AI is interface, not infra | PASS | No AI in scope (FR-014); seam (`DockerGateway`) is AI-ready later |
-| III. Safety (NON-NEGOTIABLE) | PASS | Read-only `ping/version/info` only; no destructive ops; quit/signal cleanup |
-| IV. Keyboard first (NON-NEGOTIABLE) | PASS | `j/k/r/?/q/Esc` contract + help view; mouse optional (`contracts/foundation-contracts.md`) |
-| V. TUI first | PASS | Textual, SSH-safe, resize handling, UI/infra state separated |
-| VI. Simple ops stay simple | PASS | Single status screen; no advanced flows |
-| Layered architecture | PASS | TUI → service → `SdkGateway` → Engine; SDK types never leak (`research.md` §4) |
-| Python standards | PASS | Type hints, `mypy --strict`, `ruff`, small modules, sync SDK in worker thread only |
-| TUI standards | PASS | Fast start, non-blocking refresh, loading/error/empty states, palette-ready layout |
-| Error handling | PASS | 4 states with cause + guidance; debug adds diagnostics, never raw traceback |
-| Testing | PASS | Unit (no daemon) + integration (real Engine) + Pilot TUI layers |
-| Performance | PASS | Worker-thread probe, render-first startup, lazy two-call query |
-| Configuration | PASS | Validated TOML + defaults + per-field fallback; env override via standard Docker env |
-| Observability | PASS | Structured stdlib logs, redaction filter, version/Engine info, debug flag + log file |
-| Dependencies | PASS | 3 runtime deps, each justified in `research.md`; stdlib preferred elsewhere |
-| Docs / MVP constraint | PASS | FR-014 excludes all advanced scope; quickstart + contracts document actual behavior |
+| Principle                           | Status | Evidence                                                                                   |
+| ----------------------------------- | ------ | ------------------------------------------------------------------------------------------ |
+| I. Docker is source of truth        | PASS   | In-memory snapshot per refresh only; no persistent Docker representation (`data-model.md`) |
+| II. AI is interface, not infra      | PASS   | No AI in scope (FR-014); seam (`DockerGateway`) is AI-ready later                          |
+| III. Safety (NON-NEGOTIABLE)        | PASS   | Read-only `ping/version/info` only; no destructive ops; quit/signal cleanup                |
+| IV. Keyboard first (NON-NEGOTIABLE) | PASS   | `j/k/r/?/q/Esc` contract + help view; mouse optional (`contracts/foundation-contracts.md`) |
+| V. TUI first                        | PASS   | Textual, SSH-safe, resize handling, UI/infra state separated                               |
+| VI. Simple ops stay simple          | PASS   | Single status screen; no advanced flows                                                    |
+| Layered architecture                | PASS   | TUI → service → `SdkGateway` → Engine; SDK types never leak (`research.md` §4)             |
+| Python standards                    | PASS   | Type hints, `mypy --strict`, `ruff`, small modules, sync SDK in worker thread only         |
+| TUI standards                       | PASS   | Fast start, non-blocking refresh, loading/error/empty states, palette-ready layout         |
+| Error handling                      | PASS   | 4 states with cause + guidance; debug adds diagnostics, never raw traceback                |
+| Testing                             | PASS   | Unit (no daemon) + integration (real Engine) + Pilot TUI layers                            |
+| Performance                         | PASS   | Worker-thread probe, render-first startup, lazy two-call query                             |
+| Configuration                       | PASS   | Validated TOML + defaults + per-field fallback; env override via standard Docker env       |
+| Observability                       | PASS   | Structured stdlib logs, redaction filter, version/Engine info, debug flag + log file       |
+| Dependencies                        | PASS   | 3 runtime deps, each justified in `research.md`; stdlib preferred elsewhere                |
+| Docs / MVP constraint               | PASS   | FR-014 excludes all advanced scope; quickstart + contracts document actual behavior        |
 
 Post-Phase-1 re-check: design adds no new dependencies, no persistent state, no
 auto-refresh, no remote endpoints — all gates remain PASS. No violations to justify.
@@ -93,7 +93,7 @@ specs/001-app-foundation-docker-connection/
 
 ```text
 src/
-├── docker_tui/
+├── deck/
 │   ├── __init__.py
 │   ├── cli.py            # entry point (docker-tui, --debug/--config)
 │   ├── config.py         # TOML load/validate/defaults

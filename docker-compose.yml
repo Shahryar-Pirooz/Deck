@@ -1,0 +1,13 @@
+services:
+  deck:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: deck:latest
+    stdin_open: true
+    tty: true
+    environment:
+      DECK_CONTAINER: "1"
+      TERM: xterm-256color
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
