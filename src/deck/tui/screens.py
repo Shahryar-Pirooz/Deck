@@ -15,8 +15,12 @@ from deck.docker_gateway import (
     DockerGateway,
     DockerSnapshot,
     ManagedContainer,
+    ManagedImage,
+    ManagedNetwork,
+    ManagedVolume,
+    ResourceType,
 )
-from deck.tui.widgets import FieldRow
+from deck.tui.widgets import FieldRow, SidebarView
 
 STATE_LABELS = {
     ConnectionState.CONNECTED: "Connected",
@@ -40,7 +44,8 @@ NEXT_STEPS = {
 
 SHORTCUTS = (
     ("j / k", "Move down / up"),
-    ("Enter", "Open selected container"),
+    ("1-4", "Containers / Images / Volumes / Networks"),
+    ("Enter", "Open selected resource"),
     ("s/t/r/d/l", "Start / stop / restart / remove / logs (in details)"),
     ("y / n", "Confirm / cancel removal"),
     ("r", "Refresh Docker information"),
@@ -162,8 +167,10 @@ class StatusView(Static):
 class ContainerListView(Static):
     """Sibling container rows with keyboard selection."""
 
-    def __init__(self, container_id: str = "container-list") -> None:
-        super().__init__(id=container_id)
+    def __init__(self, container_id: str = "container-list", **kwargs) -> None:
+        if "id" in kwargs:
+            container_id = kwargs.pop("id")
+        super().__init__(id=container_id, **kwargs)
         self._containers: list[ManagedContainer] = []
         self._selected = 0
         self._note = ""
@@ -224,6 +231,171 @@ class ContainerListView(Static):
             style = "reverse" if position == self._selected else ""
             rendered.append(f"{prefix}{self.row_text(container)}\n", style=style)
         return rendered
+
+
+class ResourceListView(ContainerListView):
+    """Unified selectable list for all Docker resource types.
+
+    Container-specific methods remain available so existing container behavior
+    and tests continue to work.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._resource_type = ResourceType.CONTAINERS
+        self._resources: list[
+            ManagedImage | ManagedVolume | ManagedNetwork
+        ] = []
+        self._state = "ready"
+        self._state_message = ""
+
+    @staticmethod
+    def format_image(image: ManagedImage) -> str:
+        size = _format_size(image.size_bytes)
+        return f"{image.repository_tag}  {image.image_id}  {size}  {image.created}"
+
+    @staticmethod
+    def format_volume(volume: ManagedVolume) -> str:
+        return f"{volume.name}  {volume.driver}  {volume.mountpoint}"
+
+    @staticmethod
+    def format_network(network: ManagedNetwork) -> str:
+        return f"{network.name}  {network.driver}  {network.scope}"
+
+    def show_resource(
+        self,
+        resource_type: ResourceType,
+        rows: list[ManagedImage | ManagedVolume | ManagedNetwork],
+        *,
+        state: str = "ready",
+        message: str = "",
+        position: int = 0,
+    ) -> None:
+        self._resource_type = resource_type
+        self._resources = list(rows)
+        self._state = state
+        self._state_message = message
+        self._selected = max(0, min(position, max(len(self._resources) - 1, 0)))
+        try:
+            self.update(self._render_resource_rows())
+        except Exception:  # noqa: BLE001 - unmounted in unit tests
+            pass
+
+    def move_selection(self, delta: int) -> None:
+        if self._resource_type is ResourceType.CONTAINERS:
+            super().move_selection(delta)
+            return
+        if not self._resources:
+            return
+        self._selected = max(0, min(len(self._resources) - 1, self._selected + delta))
+        try:
+            self.update(self._render_resource_rows())
+        except Exception:  # noqa: BLE001
+            pass
+
+    def selected_resource(self) -> ManagedImage | ManagedVolume | ManagedNetwork | None:
+        if self._resource_type is ResourceType.CONTAINERS or not self._resources:
+            return None
+        return self._resources[self._selected]
+
+    @property
+    def resource_position(self) -> int:
+        return self._selected
+
+    def resource_rows(self) -> list[str]:
+        if self._resource_type is ResourceType.CONTAINERS:
+            return self.row_texts()
+        formatter = {
+            ResourceType.IMAGES: self.format_image,
+            ResourceType.VOLUMES: self.format_volume,
+            ResourceType.NETWORKS: self.format_network,
+        }.get(self._resource_type)
+        return [formatter(row) for row in self._resources] if formatter else []
+
+    def _render_resource_rows(self) -> Text:
+        rendered = Text()
+        labels = {
+            ResourceType.CONTAINERS: "Containers",
+            ResourceType.IMAGES: "Images",
+            ResourceType.VOLUMES: "Volumes",
+            ResourceType.NETWORKS: "Networks",
+        }
+        rendered.append(labels[self._resource_type], style="bold")
+        rendered.append("\n\n")
+        if self._state != "ready":
+            rendered.append(self._state_message or "Loading…")
+            return rendered
+        rows = self.resource_rows()
+        if not rows:
+            rendered.append(f"No {labels[self._resource_type].lower()} found.")
+            return rendered
+        for position, row in enumerate(rows):
+            prefix = "> " if position == self._selected else "  "
+            rendered.append(f"{prefix}{row}\n", style="reverse" if position == self._selected else "")
+        return rendered
+
+
+def _format_size(size_bytes: int) -> str:
+    value = float(size_bytes)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1024 or unit == "TB":
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{size_bytes} B"
+
+
+class ResourceDetailsScreen(ModalScreen[None]):
+    """Read-only details for an image, volume, or network."""
+
+    BINDINGS = [
+        ("escape", "close_details", "Close"),
+        ("q", "close_details", "Close"),
+    ]
+
+    def __init__(self, resource: ManagedImage | ManagedVolume | ManagedNetwork) -> None:
+        super().__init__()
+        self._resource = resource
+
+    def compose(self) -> ComposeResult:
+        yield Static(self._details_text(), id="resource-details-text")
+
+    def _details_text(self) -> str:
+        resource = self._resource
+        if isinstance(resource, ManagedImage):
+            return "\n".join((
+                "Image Details",
+                "",
+                f"Repository / tag: {resource.repository_tag}",
+                f"ID: {resource.image_id}",
+                f"Size: {_format_size(resource.size_bytes)}",
+                f"Created: {resource.created}",
+                "",
+                "Read-only. Press Esc or q to close.",
+            ))
+        if isinstance(resource, ManagedVolume):
+            return "\n".join((
+                "Volume Details",
+                "",
+                f"Name: {resource.name}",
+                f"Driver: {resource.driver}",
+                f"Mountpoint: {resource.mountpoint}",
+                "",
+                "Read-only. Press Esc or q to close.",
+            ))
+        return "\n".join((
+            "Network Details",
+            "",
+            f"Name: {resource.name}",
+            f"ID: {resource.network_id}",
+            f"Driver: {resource.driver}",
+            f"Scope: {resource.scope}",
+            "",
+            "Read-only. Press Esc or q to close.",
+        ))
+
+    def action_close_details(self) -> None:
+        self.dismiss(None)
 
 
 class ConfirmScreen(ModalScreen[bool]):

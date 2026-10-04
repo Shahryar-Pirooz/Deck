@@ -16,6 +16,10 @@ from deck.docker_gateway import (
     DockerGateway,
     DockerSnapshot,
     ManagedContainer,
+    ManagedImage,
+    ManagedNetwork,
+    ManagedVolume,
+    ResourceType,
 )
 
 log = logging.getLogger(__name__)
@@ -69,6 +73,48 @@ def list_managed(gateway: DockerGateway) -> list[ManagedContainer]:
         log.debug("Container listing failed: %r", exc)
         return []
     return mark_self(containers)
+
+
+def list_managed_images(gateway: DockerGateway) -> list[ManagedImage]:
+    """List images; empty when the Engine is unreachable."""
+    log.info("Listing images via: %s", gateway.endpoint)
+    try:
+        images = gateway.list_images()
+    except ContainerOperationError as exc:
+        log.info("Image listing unavailable: %s", exc)
+        return []
+    except Exception as exc:  # noqa: BLE001 - degraded list
+        log.debug("Image listing failed: %r", exc)
+        return []
+    return images
+
+
+def list_managed_volumes(gateway: DockerGateway) -> list[ManagedVolume]:
+    """List volumes; empty when the Engine is unreachable."""
+    log.info("Listing volumes via: %s", gateway.endpoint)
+    try:
+        volumes = gateway.list_volumes()
+    except ContainerOperationError as exc:
+        log.info("Volume listing unavailable: %s", exc)
+        return []
+    except Exception as exc:  # noqa: BLE001 - degraded list
+        log.debug("Volume listing failed: %r", exc)
+        return []
+    return volumes
+
+
+def list_managed_networks(gateway: DockerGateway) -> list[ManagedNetwork]:
+    """List networks; empty when the Engine is unreachable."""
+    log.info("Listing networks via: %s", gateway.endpoint)
+    try:
+        networks = gateway.list_networks()
+    except ContainerOperationError as exc:
+        log.info("Network listing unavailable: %s", exc)
+        return []
+    except Exception as exc:  # noqa: BLE001 - degraded list
+        log.debug("Network listing failed: %r", exc)
+        return []
+    return networks
 
 
 def ensure_not_self(container: ManagedContainer, operation: str) -> None:

@@ -137,6 +137,62 @@ class ContainerOperationError(Exception):
         self.next_step = next_step
 
 
+class ResourceType(StrEnum):
+    """Resource category for the sidebar menu. Exactly one of these four is active."""
+
+    CONTAINERS = "containers"
+    IMAGES = "images"
+    VOLUMES = "volumes"
+    NETWORKS = "networks"
+
+
+@dataclass(frozen=True)
+class ManagedImage:
+    """One image row from the Engine. `repository_tag` is the primary display identity."""
+
+    image_id: str
+    repository_tag: str
+    size_bytes: int
+    created: str
+
+    def __post_init__(self) -> None:
+        if not self.image_id:
+            raise ValueError("image_id must be a non-empty string")
+        if not self.repository_tag:
+            raise ValueError("repository_tag must be a non-empty string")
+        if not isinstance(self.size_bytes, int) or self.size_bytes < 0:
+            raise ValueError("size_bytes must be a non-negative int")
+
+
+@dataclass(frozen=True)
+class ManagedVolume:
+    """One volume row from the Engine."""
+
+    name: str
+    driver: str
+    mountpoint: str
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("name must be a non-empty string")
+
+
+@dataclass(frozen=True)
+class ManagedNetwork:
+    """One network row from the Engine."""
+
+    network_id: str
+    name: str
+    driver: str
+    scope: str
+
+    def __post_init__(self) -> None:
+        if not self.network_id:
+            raise ValueError("network_id must be a non-empty string")
+        if not self.name:
+            raise ValueError("name must be a non-empty string")
+
+
 class DockerGateway(Protocol):
     """Thin connectivity seam owned by the application."""
 
@@ -175,4 +231,16 @@ class DockerGateway(Protocol):
 
     def remove_container(self, container_id: str) -> None:
         """Remove a container. Callers MUST confirm first; self is blocked upstream."""
+        ...
+
+    def list_images(self) -> list[ManagedImage]:
+        """List images from the Engine; empty when unreachable."""
+        ...
+
+    def list_volumes(self) -> list[ManagedVolume]:
+        """List volumes from the Engine; empty when unreachable."""
+        ...
+
+    def list_networks(self) -> list[ManagedNetwork]:
+        """List networks from the Engine; empty when unreachable."""
         ...

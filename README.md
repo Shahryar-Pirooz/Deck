@@ -55,7 +55,8 @@ The primary navigation shortcuts are:
 | `k`     | Move up                 |
 | `↑`     | Move down               |
 | `↓`     | Move up                 |
-| `Enter` | Open selected container |
+| `1`-`4` | Containers / Images / Volumes / Networks |
+| `Enter` | Open selected resource |
 | `r`     | Refresh                 |
 | `q`     | Quit                    |
 | `Esc`   | Close modal             |

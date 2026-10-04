@@ -1,23 +1,59 @@
-# Keep the build context to what the image needs: packaging metadata + source.
-.venv/
-venv/
+# Python
 __pycache__/
-*.pyc
-.git/
-.gitignore
-.pytest_cache/
+*.py[codz]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.spec
+
+# Environments / secrets
+.env
+.envrc
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Tooling caches
 .mypy_cache/
 .ruff_cache/
+.pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
-dist/
-build/
-*.egg-info/
-tests/
-specs/
-.specify/
-.opencode/
-.opencode
 coverage.xml
-*.log*
-.env*
+.tox/
+.nox/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build context
+.git/
+.github/
+specs/
+tests/
+include/
+docs/
+

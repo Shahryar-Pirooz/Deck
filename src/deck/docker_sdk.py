@@ -27,6 +27,10 @@ from deck.docker_gateway import (
     DockerSnapshot,
     DockerSystemSummary,
     ManagedContainer,
+    ManagedImage,
+    ManagedNetwork,
+    ManagedVolume,
+    ResourceType,
     bucket_for_status,
 )
 
@@ -131,6 +135,35 @@ def build_managed(native: Any) -> ManagedContainer:
         state_bucket=bucket_for_status(status),
         exact_status=status,
     )
+
+
+def build_managed_image(native: Any) -> ManagedImage:
+    """Translate one SDK image object to a validated row."""
+    image_id = str(getattr(native, "id", "") or "")
+    tags = getattr(native, "tags", None) or []
+    repository_tag = str(tags[0] if tags else (getattr(native, "short_id", "") or "unknown") or "unknown")
+    created = str(getattr(native, "created", "") or "unknown")
+    size_bytes = 0
+    attrs = getattr(native, "attrs", None) or {}
+    size_bytes = int(attrs.get("Size", 0)) if isinstance(attrs.get("Size"), (int, float)) else 0
+    return ManagedImage(image_id=image_id, repository_tag=repository_tag, size_bytes=size_bytes, created=created)
+
+
+def build_managed_volume(native: Any) -> ManagedVolume:
+    """Translate one SDK volume object to a validated row."""
+    name = str(getattr(native, "name", "") or "unknown")
+    driver = str(getattr(native, "driver", "") or "unknown")
+    mountpoint = str(getattr(native, "mountpoint", "") or "unknown")
+    return ManagedVolume(name=name, driver=driver, mountpoint=mountpoint)
+
+
+def build_managed_network(native: Any) -> ManagedNetwork:
+    """Translate one SDK network object to a validated row."""
+    network_id = str(getattr(native, "id", "") or "")
+    name = str(getattr(native, "name", "") or "unknown")
+    driver = str(getattr(native, "driver", "") or "unknown")
+    scope = str(getattr(native, "scope", "") or "unknown")
+    return ManagedNetwork(network_id=network_id, name=name, driver=driver, scope=scope)
 
 
 def _operation_error(operation: str, container: str, exc: BaseException) -> ContainerOperationError:
@@ -378,6 +411,78 @@ class SdkGateway(DockerGateway):
                 client.close()
             except Exception:  # noqa: BLE001, S110 - best-effort cleanup
                 pass
+
+    def list_images(self) -> list[ManagedImage]:
+        try:
+            client = self._container_client()
+        except Exception as exc:  # noqa: BLE001 - degraded list, status explains
+            log.debug("Image listing client failed: %r", exc)
+            return []
+        try:
+            natives = client.images.list(all=True)
+        except Exception as exc:  # noqa: BLE001 - degraded list
+            log.debug("Image listing query failed: %r", exc)
+            return []
+        finally:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001, S110 - best-effort cleanup
+                pass
+        rows: list[ManagedImage] = []
+        for native in natives:
+            try:
+                rows.append(build_managed_image(native))
+            except (ValueError, TypeError, AttributeError) as exc:
+                log.debug("Skipping unparsable image row: %r", exc)
+        return rows
+
+    def list_volumes(self) -> list[ManagedVolume]:
+        try:
+            client = self._container_client()
+        except Exception as exc:  # noqa: BLE001 - degraded list, status explains
+            log.debug("Volume listing client failed: %r", exc)
+            return []
+        try:
+            natives = client.volumes.list()
+        except Exception as exc:  # noqa: BLE001 - degraded list
+            log.debug("Volume listing query failed: %r", exc)
+            return []
+        finally:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001, S110 - best-effort cleanup
+                pass
+        rows: list[ManagedVolume] = []
+        for native in natives:
+            try:
+                rows.append(build_managed_volume(native))
+            except (ValueError, TypeError, AttributeError) as exc:
+                log.debug("Skipping unparsable volume row: %r", exc)
+        return rows
+
+    def list_networks(self) -> list[ManagedNetwork]:
+        try:
+            client = self._container_client()
+        except Exception as exc:  # noqa: BLE001 - degraded list, status explains
+            log.debug("Network listing client failed: %r", exc)
+            return []
+        try:
+            natives = client.networks.list()
+        except Exception as exc:  # noqa: BLE001 - degraded list
+            log.debug("Network listing query failed: %r", exc)
+            return []
+        finally:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001, S110 - best-effort cleanup
+                pass
+        rows: list[ManagedNetwork] = []
+        for native in natives:
+            try:
+                rows.append(build_managed_network(native))
+            except (ValueError, TypeError, AttributeError) as exc:
+                log.debug("Skipping unparsable network row: %r", exc)
+        return rows
 
     def __enter__(self) -> SdkGateway:
         return self
