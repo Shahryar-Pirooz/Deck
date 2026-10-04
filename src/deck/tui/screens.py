@@ -6,6 +6,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Header, LoadingIndicator, Static
+from textual.widgets import DataTable
 
 from deck import services
 from deck.docker_gateway import (
@@ -165,7 +166,9 @@ class StatusView(Static):
 
 
 class ContainerListView(Static):
-    """Sibling container rows with keyboard selection."""
+    """Sibling container rows with keyboard selection in a table layout."""
+
+    COLUMNS = ("NAME", "IMAGE", "STATUS")
 
     def __init__(self, container_id: str = "container-list", **kwargs) -> None:
         if "id" in kwargs:
@@ -174,6 +177,17 @@ class ContainerListView(Static):
         self._containers: list[ManagedContainer] = []
         self._selected = 0
         self._note = ""
+        self._table: DataTable | None = None
+
+    def compose(self) -> ComposeResult:
+        self._table = DataTable(
+            id="resource-table",
+            cursor_type="row",
+            zebra_stripes=True,
+            show_header=True,
+        )
+        self._table.add_columns(*self.COLUMNS)
+        yield self._table
 
     @staticmethod
     def row_text(container: ManagedContainer) -> str:
@@ -184,25 +198,39 @@ class ContainerListView(Static):
             text += "  ← this container"
         return text
 
+    @staticmethod
+    def _row_tuple(container: ManagedContainer) -> tuple[str, str, str]:
+        bucket = CONTAINER_BUCKET_LABELS.get(container.state_bucket, container.exact_status)
+        return (container.name, container.image_ref, bucket)
+
     def show_containers(self, containers: list[ManagedContainer], note: str = "") -> None:
         """Replace rows; empty lists render a note instead of blanks."""
         self._containers = list(containers)
         self._note = note
         self._selected = max(0, min(self._selected, max(len(self._containers) - 1, 0)))
-        try:
-            self.update(self._render_rows())
-        except Exception:  # noqa: BLE001 - unmounted in unit tests
-            pass
+        self._refresh_table()
+
+    def _refresh_table(self) -> None:
+        if self._table is None:
+            return
+        self._table.clear()
+        if not self._containers:
+            self._table.add_row("No containers found", "", "")
+            if self._note:
+                self._table.add_row(self._note, "", "")
+            return
+        for container in self._containers:
+            self._table.add_row(*self._row_tuple(container))
+        if self._containers:
+            self._table.move_cursor(row=self._selected)
 
     def move_selection(self, delta: int) -> None:
         """Move highlight; no-op on an empty list."""
         if not self._containers:
             return
         self._selected = max(0, min(len(self._containers) - 1, self._selected + delta))
-        try:
-            self.update(self._render_rows())
-        except Exception:  # noqa: BLE001 - unmounted in unit tests
-            pass
+        if self._table:
+            self._table.move_cursor(row=self._selected)
 
     def selected(self) -> ManagedContainer | None:
         """Currently highlighted row, if any."""
@@ -219,19 +247,6 @@ class ContainerListView(Static):
         """Current row strings (for tests)."""
         return [self.row_text(container) for container in self._containers]
 
-    def _render_rows(self) -> Text:
-        rendered = Text()
-        if not self._containers:
-            rendered.append("No containers found.")
-            if self._note:
-                rendered.append(f"\n{self._note}")
-            return rendered
-        for position, container in enumerate(self._containers):
-            prefix = "> " if position == self._selected else "  "
-            style = "reverse" if position == self._selected else ""
-            rendered.append(f"{prefix}{self.row_text(container)}\n", style=style)
-        return rendered
-
 
 class ResourceListView(ContainerListView):
     """Unified selectable list for all Docker resource types.
@@ -239,6 +254,10 @@ class ResourceListView(ContainerListView):
     Container-specific methods remain available so existing container behavior
     and tests continue to work.
     """
+
+    IMAGE_COLUMNS = ("REPOSITORY:TAG", "IMAGE ID", "SIZE", "CREATED")
+    VOLUME_COLUMNS = ("NAME", "DRIVER", "MOUNTPOINT")
+    NETWORK_COLUMNS = ("NAME", "DRIVER", "SCOPE")
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -248,6 +267,10 @@ class ResourceListView(ContainerListView):
             ManagedImage | ManagedVolume | ManagedNetwork
         ] = []
         self._state = "ready"
+        self._state_message = ""
+        self._creation_mode = None  # None or "image_create"
+
+    # ... rest of the class
         self._state_message = ""
 
     @staticmethod
@@ -263,6 +286,22 @@ class ResourceListView(ContainerListView):
     def format_network(network: ManagedNetwork) -> str:
         return f"{network.name}  {network.driver}  {network.scope}"
 
+    def _get_columns(self) -> tuple[str, ...]:
+        return {
+            ResourceType.CONTAINERS: self.COLUMNS,
+            ResourceType.IMAGES: self.IMAGE_COLUMNS,
+            ResourceType.VOLUMES: self.VOLUME_COLUMNS,
+            ResourceType.NETWORKS: self.NETWORK_COLUMNS,
+        }.get(self._resource_type, self.COLUMNS)
+
+    def _resource_to_row(self, resource: ManagedImage | ManagedVolume | ManagedNetwork) -> tuple[str, ...]:
+        if isinstance(resource, ManagedImage):
+            size = _format_size(resource.size_bytes)
+            return (resource.repository_tag, resource.image_id, size, resource.created)
+        if isinstance(resource, ManagedVolume):
+            return (resource.name, resource.driver, resource.mountpoint)
+        return (resource.name, resource.driver, resource.scope)
+
     def show_resource(
         self,
         resource_type: ResourceType,
@@ -277,10 +316,42 @@ class ResourceListView(ContainerListView):
         self._state = state
         self._state_message = message
         self._selected = max(0, min(position, max(len(self._resources) - 1, 0)))
-        try:
-            self.update(self._render_resource_rows())
-        except Exception:  # noqa: BLE001 - unmounted in unit tests
-            pass
+        self._refresh_resource_table()
+
+    def _refresh_resource_table(self) -> None:
+        if self._table is None:
+            return
+        # Remove all existing columns
+        if self._table.columns:
+            column_keys = list(self._table.columns.keys())
+            for key in column_keys:
+                self._table.remove_column(key)
+        self._table.clear()
+        columns = self._get_columns()
+        self._table.add_columns(*columns)
+
+        if self._state != "ready":
+            row = (self._state_message or "Loading…",) + ("",) * (len(columns) - 1)
+            self._table.add_row(*row)
+            return
+        if not self._resources:
+            label = {
+                ResourceType.CONTAINERS: "containers",
+                ResourceType.IMAGES: "images",
+                ResourceType.VOLUMES: "volumes",
+                ResourceType.NETWORKS: "networks",
+            }.get(self._resource_type, "resources")
+            row = (f"No {label} found",) + ("",) * (len(columns) - 1)
+            self._table.add_row(*row)
+            return
+        for resource in self._resources:
+            row = self._resource_to_row(resource)
+            self._table.add_row(*row)
+        # Add "Create Container" option at the end when viewing images
+        if self._resource_type == ResourceType.IMAGES:
+            self._table.add_row("Create New Container...", "", "" * (len(columns) - 1) if len(columns) > 1 else "")
+        if self._resources:
+            self._table.move_cursor(row=self._selected)
 
     def move_selection(self, delta: int) -> None:
         if self._resource_type is ResourceType.CONTAINERS:
@@ -289,10 +360,8 @@ class ResourceListView(ContainerListView):
         if not self._resources:
             return
         self._selected = max(0, min(len(self._resources) - 1, self._selected + delta))
-        try:
-            self.update(self._render_resource_rows())
-        except Exception:  # noqa: BLE001
-            pass
+        if self._table:
+            self._table.move_cursor(row=self._selected)
 
     def selected_resource(self) -> ManagedImage | ManagedVolume | ManagedNetwork | None:
         if self._resource_type is ResourceType.CONTAINERS or not self._resources:
@@ -313,27 +382,13 @@ class ResourceListView(ContainerListView):
         }.get(self._resource_type)
         return [formatter(row) for row in self._resources] if formatter else []
 
-    def _render_resource_rows(self) -> Text:
-        rendered = Text()
-        labels = {
-            ResourceType.CONTAINERS: "Containers",
-            ResourceType.IMAGES: "Images",
-            ResourceType.VOLUMES: "Volumes",
-            ResourceType.NETWORKS: "Networks",
-        }
-        rendered.append(labels[self._resource_type], style="bold")
-        rendered.append("\n\n")
-        if self._state != "ready":
-            rendered.append(self._state_message or "Loading…")
-            return rendered
-        rows = self.resource_rows()
-        if not rows:
-            rendered.append(f"No {labels[self._resource_type].lower()} found.")
-            return rendered
-        for position, row in enumerate(rows):
-            prefix = "> " if position == self._selected else "  "
-            rendered.append(f"{prefix}{row}\n", style="reverse" if position == self._selected else "")
-        return rendered
+
+    def _create_placeholder_row(self) -> tuple[str, ...]:
+        """Create a placeholder row for the 'Create Container' option."""
+        columns = self._get_columns()
+        if self._resource_type == ResourceType.IMAGES:
+            return ("Create New Container...", "", "", "")
+        return ("",) * len(columns)
 
 
 def _format_size(size_bytes: int) -> str:
@@ -603,6 +658,112 @@ class ContainerDetailsScreen(ModalScreen[bool]):
 
     def action_dismiss_details(self) -> None:
         """Close the details modal."""
+        self.dismiss(False)
+
+
+class ContainerCreateScreen(ModalScreen[bool]):
+    """Modal screen for creating a new container from an image.
+
+    Dismisses with True when a mutation succeeded (caller should refresh),
+    False/None on plain close. Dismiss with Esc or q.
+    """
+
+    BINDINGS = [
+        ("escape", "dismiss_create", "Close"),
+        ("q", "dismiss_create", "Close"),
+    ]
+
+    def __init__(self, image: ManagedImage, gateway: DockerGateway | None = None) -> None:
+        super().__init__()
+        self._image = image
+        self._gateway = gateway
+        self._name = ""
+        self._ports: list[str] = []
+        self._volumes: list[str] = []
+        self._network = ""
+        self._envs: list[str] = []
+        self._current_field = 0
+        self._result = ""
+
+    def compose(self) -> ComposeResult:
+        yield Static(f"Create container from: {self._image.repository_tag}", id="create-title")
+        yield Static(
+            "Name: " + (self._name or "(press Enter to edit)"),
+            id="create-name",
+        )
+        yield Static(
+            "Ports: " + (", ".join(self._ports) if self._ports else "(press Enter to edit)"),
+            id="create-ports",
+        )
+        yield Static(
+            "Volumes: " + (", ".join(self._volumes) if self._volumes else "(press Enter to edit)"),
+            id="create-volumes",
+        )
+        yield Static(
+            "Network: " + (self._network or "(press Enter to edit)"),
+            id="create-network",
+        )
+        yield Static(
+            "Env: " + (", ".join(self._envs) if self._envs else "(press Enter to edit)"),
+            id="create-envs",
+        )
+        yield Static("", id="create-result")
+        yield Static("Press Enter to edit fields, s to start, Esc/q to cancel.", id="create-help")
+
+    def _refresh(self) -> None:
+        try:
+            self.query_one("#create-name", Static).update(f"Name: {self._name or '(press Enter to edit)'}")
+            self.query_one("#create-ports", Static).update(f"Ports: {', '.join(self._ports) if self._ports else '(press Enter to edit)'}")
+            self.query_one("#create-volumes", Static).update(f"Volumes: {', '.join(self._volumes) if self._volumes else '(press Enter to edit)'}")
+            self.query_one("#create-network", Static).update(f"Network: {self._network or '(press Enter to edit)'}")
+            self.query_one("#create-envs", Static).update(f"Env: {', '.join(self._envs) if self._envs else '(press Enter to edit)'}")
+        except Exception:  # noqa: BLE001 - unmounted in unit tests
+            pass
+
+    def _show_result(self, text: str) -> None:
+        self._result = text
+        try:
+            self.query_one("#create-result", Static).update(text)
+        except Exception:  # noqa: BLE001 - unmounted in unit tests
+            pass
+
+    def _start_container(self) -> None:
+        if self._gateway is None:
+            self._show_result("Engine unavailable.")
+            return
+        if not self._name:
+            self._show_result("Container name is required.")
+            return
+        gateway = self._gateway
+        image = self._image
+        name = self._name
+        ports = list(self._ports)
+        volumes = list(self._volumes)
+        network = self._network
+        envs = list(self._envs)
+
+        def work() -> None:
+            try:
+                # Use services to create the container
+                from deck import services
+                services.run_managed(
+                    gateway,
+                    image,
+                    name=name,
+                    ports=ports,
+                    volumes=volumes,
+                    network=network,
+                    envs=envs,
+                )
+            except Exception as exc:  # noqa: BLE001 - never crash the worker
+                self.app.call_from_thread(self._show_result, f"Failed: {exc}")
+                return
+            self.app.call_from_thread(self.dismiss, True)
+
+        self.run_worker(work, thread=True)
+
+    def action_dismiss_create(self) -> None:
+        """Close the create modal."""
         self.dismiss(False)
 
 

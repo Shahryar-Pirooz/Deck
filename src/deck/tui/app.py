@@ -22,6 +22,7 @@ from deck.docker_gateway import (
     ResourceType,
 )
 from deck.tui.screens import (
+    ContainerCreateScreen,
     ContainerDetailsScreen,
     ContainerListView,
     HelpScreen,
@@ -77,6 +78,12 @@ class DeckApp(App[None]):
         border: round $secondary;
         overflow-y: auto;
         color: $text;
+    }
+
+    #container-list DataTable {
+        height: 1fr;
+        width: 100%;
+        overflow-y: auto;
     }
 
     #loading {
@@ -255,7 +262,7 @@ class DeckApp(App[None]):
             containers = [row for row in rows if isinstance(row, ManagedContainer)]
             view.show_containers(containers)
             view._selected = max(0, min(position, max(len(containers) - 1, 0)))
-            view.update(view._render_rows())
+            view.move_selection(0)
             self._selected_index = view.position
         else:
             resources = [
@@ -308,6 +315,22 @@ class DeckApp(App[None]):
         selected_resource = view.selected_resource()
         if selected_resource is not None:
             self.push_screen(ResourceDetailsScreen(selected_resource))
+        # Check if user selected "Create New Container" option in images view
+        elif self.current_resource_type is ResourceType.IMAGES:
+            # Get the last row (which should be the create option)
+            row_count = len(view._resources) if view._resources else 0
+            if view.position == row_count:  # Last row is the create option
+                # Find the first image to use as template (this is a simplified approach)
+                # In a real implementation, you'd want to let the user select an image first
+                if view._resources:
+                    # Get the currently selected image as the base for creation
+                    if view._resources and view.position < len(view._resources):
+                        base_image = view._resources[view.position]
+                    else:
+                        # Use the first image as default
+                        base_image = view._resources[0] if view._resources else None
+                    if base_image and isinstance(base_image, ManagedImage):
+                        self.push_screen(ContainerCreateScreen(base_image, self._gateway))
 
     # ------------------------------------------------------------------
     # Existing container lifecycle behavior
