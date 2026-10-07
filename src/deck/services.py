@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import socket
 from dataclasses import replace
 
@@ -23,6 +24,14 @@ from deck.docker_gateway import (
 )
 
 log = logging.getLogger(__name__)
+
+_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def _clean_log_line(line: str) -> str:
+    """Strip ANSI escapes and control characters that would garble the TUI."""
+    return _CONTROL_RE.sub("", _ANSI_RE.sub("", line))
 
 
 class SelfActionBlocked(Exception):
@@ -164,7 +173,8 @@ def remove_managed(gateway: DockerGateway, container: ManagedContainer, confirme
 def fetch_logs(gateway: DockerGateway, container: ManagedContainer, tail: int = 200) -> list[str]:
     """Fetch a bounded tail of log lines for one container."""
     log.info("Fetching logs for container '%s'", container.name)
-    return list(gateway.container_logs(container.container_id, tail=tail).lines)
+    lines = gateway.container_logs(container.container_id, tail=tail).lines
+    return [_clean_log_line(line) for line in lines]
 
 
 def refresh_snapshot(gateway: DockerGateway) -> DockerSnapshot:

@@ -5,8 +5,7 @@ from __future__ import annotations
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.screen import ModalScreen
-from textual.widgets import Footer, Header, LoadingIndicator, Static
-from textual.widgets import DataTable
+from textual.widgets import DataTable, Footer, Header, LoadingIndicator, Static
 
 from deck import services
 from deck.docker_gateway import (
@@ -100,8 +99,8 @@ class StatusView(Static):
         yield Static("Docker Status", classes="panel-title")
         for field_id in self.FIELD_IDS:
             yield FieldRow(field_id, self.LABELS[field_id])
-        yield Static("", id="detail", classes="detail")
-        yield Static("", id="hint", classes="hint")
+        yield Static("", id="detail", classes="detail", markup=False)
+        yield Static("", id="hint", classes="hint", markup=False)
 
     def show_snapshot(self, snapshot: DockerSnapshot, debug: bool = False) -> None:
         """Render a snapshot; missing fields show as unavailable."""
@@ -217,17 +216,55 @@ class ContainerListView(Static):
         if not self._containers:
             self._table.add_row("No containers found", "", "")
             if self._note:
-                self._table.add_row(self._note, "", "")
+                self._table.add_row(Text(self._note), "", "")
             return
         for container in self._containers:
-            self._table.add_row(*self._row_tuple(container))
+            self._table.add_row(*(Text(cell) for cell in self._row_tuple(container)))
         if self._containers:
             self._table.move_cursor(row=self._selected)
+
+    def _selectable_count(self) -> int:
+        """Number of rows the selection index may point at."""
+        return len(self._containers)
+
+    def _table_reflects_rows(self) -> bool:
+        """True when the table currently shows real rows (not a status message)."""
+        return True
+
+    def sync_selection(self) -> None:
+        """Adopt the table cursor as the selection.
+
+        The focused DataTable handles arrow keys itself, so its cursor can move
+        without ``_selected`` knowing about it.
+        """
+        table = self._table
+        count = self._selectable_count()
+        if table is None or count == 0 or not self._table_reflects_rows():
+            return
+        try:
+            row = table.cursor_row
+        except Exception:  # noqa: BLE001 - table not ready yet
+            return
+        self._selected = max(0, min(row, count - 1))
+
+    def select_row(self, index: int) -> None:
+        """Select an absolute row index (clamped) and move the cursor there."""
+        count = self._selectable_count()
+        self._selected = max(0, min(index, max(count - 1, 0)))
+        if self._table is not None and count:
+            self._table.move_cursor(row=self._selected)
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Enter/click on a row opens it (the focused table consumes Enter)."""
+        event.stop()
+        self.sync_selection()
+        self.app.action_open_selected()  # type: ignore[attr-defined]
 
     def move_selection(self, delta: int) -> None:
         """Move highlight; no-op on an empty list."""
         if not self._containers:
             return
+        self.sync_selection()
         self._selected = max(0, min(len(self._containers) - 1, self._selected + delta))
         if self._table:
             self._table.move_cursor(row=self._selected)
@@ -268,10 +305,20 @@ class ResourceListView(ContainerListView):
         ] = []
         self._state = "ready"
         self._state_message = ""
-        self._creation_mode = None  # None or "image_create"
 
-    # ... rest of the class
+    def show_containers(self, containers: list[ManagedContainer], note: str = "") -> None:
+        self._resource_type = ResourceType.CONTAINERS
+        self._state = "ready"
         self._state_message = ""
+        super().show_containers(containers, note)
+
+    def _selectable_count(self) -> int:
+        if self._resource_type is ResourceType.CONTAINERS:
+            return len(self._containers)
+        return len(self._resources)
+
+    def _table_reflects_rows(self) -> bool:
+        return self._state == "ready"
 
     @staticmethod
     def format_image(image: ManagedImage) -> str:
@@ -297,7 +344,8 @@ class ResourceListView(ContainerListView):
     def _resource_to_row(self, resource: ManagedImage | ManagedVolume | ManagedNetwork) -> tuple[str, ...]:
         if isinstance(resource, ManagedImage):
             size = _format_size(resource.size_bytes)
-            return (resource.repository_tag, resource.image_id, size, resource.created)
+            short_id = resource.image_id.removeprefix("sha256:")[:12]
+            return (resource.repository_tag, short_id, size, resource.created)
         if isinstance(resource, ManagedVolume):
             return (resource.name, resource.driver, resource.mountpoint)
         return (resource.name, resource.driver, resource.scope)
@@ -331,7 +379,7 @@ class ResourceListView(ContainerListView):
         self._table.add_columns(*columns)
 
         if self._state != "ready":
-            row = (self._state_message or "Loading…",) + ("",) * (len(columns) - 1)
+            row = (Text(self._state_message or "Loading…"),) + ("",) * (len(columns) - 1)
             self._table.add_row(*row)
             return
         if not self._resources:
@@ -346,10 +394,7 @@ class ResourceListView(ContainerListView):
             return
         for resource in self._resources:
             row = self._resource_to_row(resource)
-            self._table.add_row(*row)
-        # Add "Create Container" option at the end when viewing images
-        if self._resource_type == ResourceType.IMAGES:
-            self._table.add_row("Create New Container...", "", "" * (len(columns) - 1) if len(columns) > 1 else "")
+            self._table.add_row(*(Text(cell) for cell in row))
         if self._resources:
             self._table.move_cursor(row=self._selected)
 
@@ -359,6 +404,7 @@ class ResourceListView(ContainerListView):
             return
         if not self._resources:
             return
+        self.sync_selection()
         self._selected = max(0, min(len(self._resources) - 1, self._selected + delta))
         if self._table:
             self._table.move_cursor(row=self._selected)
@@ -383,14 +429,6 @@ class ResourceListView(ContainerListView):
         return [formatter(row) for row in self._resources] if formatter else []
 
 
-    def _create_placeholder_row(self) -> tuple[str, ...]:
-        """Create a placeholder row for the 'Create Container' option."""
-        columns = self._get_columns()
-        if self._resource_type == ResourceType.IMAGES:
-            return ("Create New Container...", "", "", "")
-        return ("",) * len(columns)
-
-
 def _format_size(size_bytes: int) -> str:
     value = float(size_bytes)
     for unit in ("B", "KB", "MB", "GB", "TB"):
@@ -413,7 +451,7 @@ class ResourceDetailsScreen(ModalScreen[None]):
         self._resource = resource
 
     def compose(self) -> ComposeResult:
-        yield Static(self._details_text(), id="resource-details-text")
+        yield Static(self._details_text(), id="resource-details-text", markup=False)
 
     def _details_text(self) -> str:
         resource = self._resource
@@ -472,7 +510,11 @@ class ConfirmScreen(ModalScreen[bool]):
         self._message = message
 
     def compose(self) -> ComposeResult:
-        yield Static(f"{self._message}\n\nPress y to confirm, n to cancel.", id="confirm-text")
+        yield Static(
+            f"{self._message}\n\nPress y to confirm, n to cancel.",
+            id="confirm-text",
+            markup=False,
+        )
 
     def action_confirm(self) -> None:
         """Confirm the destructive action."""
@@ -506,15 +548,17 @@ class ContainerDetailsScreen(ModalScreen[bool]):
         self._gateway = gateway
         self.last_result = ""
         self.last_logs: list[str] = []
+        self.mutated = False
 
     def compose(self) -> ComposeResult:
-        yield Static(self._details_text(), id="details-text")
+        yield Static(self._details_text(), id="details-text", markup=False)
         yield Static(
             "Actions: s start · t stop · r restart · d remove (confirms first) · l logs",
             id="details-actions",
+            markup=False,
         )
-        yield Static("", id="details-result")
-        yield Static("Logs: press l to fetch.", id="details-logs")
+        yield Static("", id="details-result", markup=False)
+        yield Static("Logs: press l to fetch.", id="details-logs", markup=False)
 
     def _details_text(self) -> str:
         container = self._container
@@ -574,6 +618,7 @@ class ContainerDetailsScreen(ModalScreen[bool]):
         self.run_worker(work, thread=True)
 
     def _after_mutation(self, text: str) -> None:
+        self.mutated = True
         self._refresh_details()
         self._show_result(text)
 
@@ -657,8 +702,8 @@ class ContainerDetailsScreen(ModalScreen[bool]):
         self.run_worker(work, thread=True)
 
     def action_dismiss_details(self) -> None:
-        """Close the details modal."""
-        self.dismiss(False)
+        """Close the details modal; True tells the caller to refresh the list."""
+        self.dismiss(self.mutated)
 
 
 class ContainerCreateScreen(ModalScreen[bool]):

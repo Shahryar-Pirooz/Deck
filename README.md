@@ -255,7 +255,7 @@ deck
 Or:
 
 ```bash
-python -m docker_tui.cli
+python -m deck.cli
 ```
 
 ---

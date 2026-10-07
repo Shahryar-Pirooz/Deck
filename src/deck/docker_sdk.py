@@ -117,16 +117,63 @@ def build_summary(version_data: dict[str, Any], info_data: dict[str, Any]) -> Do
     )
 
 
+def _container_image_ref(native: Any) -> str:
+    """Image reference for a container row without extra Engine calls.
+
+    ``native.image`` performs an API request per container and raises
+    ``ImageNotFound`` when the image was removed or retagged, which used to
+    make the whole list come back empty. Prefer the reference already present
+    in the list payload and only then fall back to the image object.
+    """
+    attrs = getattr(native, "attrs", None)
+    if isinstance(attrs, dict):
+        ref = attrs.get("Image")
+        if isinstance(ref, str) and ref:
+            return ref[:19] if ref.startswith("sha256:") else ref
+    try:
+        image = getattr(native, "image", None)
+        tags = getattr(image, "tags", None) or []
+        if tags:
+            return str(tags[0])
+        short_id = getattr(image, "short_id", None)
+        if short_id:
+            return str(short_id)
+    except Exception:  # noqa: BLE001 - image removed/untagged; keep the row
+        pass
+    return "unknown"
+
+
+def _format_created(value: Any) -> str:
+    """Render an Engine ``Created`` value (epoch int or ISO string)."""
+    if isinstance(value, bool):
+        return "unknown"
+    if isinstance(value, (int, float)) and value > 0:
+        return datetime.fromtimestamp(value, UTC).strftime("%Y-%m-%d %H:%M")
+    if isinstance(value, str) and value:
+        return value[:16].replace("T", " ")
+    return "unknown"
+
+
+def _native_attr(native: Any, name: str, key: str) -> str:
+    """Read a property, falling back to the raw Engine ``attrs`` payload.
+
+    SDK ``Volume``/``Network`` objects expose only ``name``/``id``; fields such
+    as driver, mountpoint and scope live in ``attrs``.
+    """
+    value = getattr(native, name, None)
+    if value:
+        return str(value)
+    attrs = getattr(native, "attrs", None)
+    if isinstance(attrs, dict) and attrs.get(key):
+        return str(attrs[key])
+    return "unknown"
+
+
 def build_managed(native: Any) -> ManagedContainer:
     """Translate one SDK container object to a validated row."""
     container_id = str(getattr(native, "id", "") or "")
     raw_name = str(getattr(native, "name", "") or "unknown")
-    image = getattr(native, "image", None)
-    tags = getattr(image, "tags", None) or []
-    if tags:
-        image_ref = str(tags[0])
-    else:
-        image_ref = str(getattr(image, "short_id", "unknown") or "unknown")
+    image_ref = _container_image_ref(native)
     status = str(getattr(native, "status", "unknown") or "unknown")
     return ManagedContainer(
         container_id=container_id,
@@ -142,9 +189,11 @@ def build_managed_image(native: Any) -> ManagedImage:
     image_id = str(getattr(native, "id", "") or "")
     tags = getattr(native, "tags", None) or []
     repository_tag = str(tags[0] if tags else (getattr(native, "short_id", "") or "unknown") or "unknown")
-    created = str(getattr(native, "created", "") or "unknown")
-    size_bytes = 0
-    attrs = getattr(native, "attrs", None) or {}
+    attrs = getattr(native, "attrs", None)
+    if not isinstance(attrs, dict):
+        attrs = {}
+    created_attr = getattr(native, "created", None)
+    created = str(created_attr) if created_attr else _format_created(attrs.get("Created"))
     size_bytes = int(attrs.get("Size", 0)) if isinstance(attrs.get("Size"), (int, float)) else 0
     return ManagedImage(image_id=image_id, repository_tag=repository_tag, size_bytes=size_bytes, created=created)
 
@@ -152,8 +201,8 @@ def build_managed_image(native: Any) -> ManagedImage:
 def build_managed_volume(native: Any) -> ManagedVolume:
     """Translate one SDK volume object to a validated row."""
     name = str(getattr(native, "name", "") or "unknown")
-    driver = str(getattr(native, "driver", "") or "unknown")
-    mountpoint = str(getattr(native, "mountpoint", "") or "unknown")
+    driver = _native_attr(native, "driver", "Driver")
+    mountpoint = _native_attr(native, "mountpoint", "Mountpoint")
     return ManagedVolume(name=name, driver=driver, mountpoint=mountpoint)
 
 
@@ -161,8 +210,8 @@ def build_managed_network(native: Any) -> ManagedNetwork:
     """Translate one SDK network object to a validated row."""
     network_id = str(getattr(native, "id", "") or "")
     name = str(getattr(native, "name", "") or "unknown")
-    driver = str(getattr(native, "driver", "") or "unknown")
-    scope = str(getattr(native, "scope", "") or "unknown")
+    driver = _native_attr(native, "driver", "Driver")
+    scope = _native_attr(native, "scope", "Scope")
     return ManagedNetwork(network_id=network_id, name=name, driver=driver, scope=scope)
 
 
@@ -214,7 +263,11 @@ class SdkGateway(DockerGateway):
         # (docker>=7.2 supports use_context).
         if self._endpoint != DEFAULT_ENDPOINT and "DOCKER_HOST" not in os.environ:
             return docker.DockerClient(base_url=self._endpoint, timeout=self._timeout)
-        return docker.from_env(timeout=self._timeout, use_context=False)
+        try:
+            return docker.from_env(timeout=self._timeout, use_context=False)
+        except TypeError:
+            # Older docker SDK releases do not accept ``use_context``.
+            return docker.from_env(timeout=self._timeout)
 
     def get_snapshot(self) -> DockerSnapshot:
         probed_at = datetime.now(UTC)

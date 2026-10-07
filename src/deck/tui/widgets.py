@@ -23,7 +23,7 @@ class FieldRow(Horizontal):
 
     def compose(self) -> ComposeResult:
         yield Label(self._label, classes="field-label")
-        yield Label(self._value, id=f"val-{self._field_id}", classes="field-value")
+        yield Label(self._value, id=f"val-{self._field_id}", classes="field-value", markup=False)
 
     def set_value(self, value: str | None) -> None:
         """Update the value; None renders as unavailable."""

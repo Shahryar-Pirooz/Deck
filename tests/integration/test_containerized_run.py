@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -24,8 +25,8 @@ def _daemon_reachable() -> bool:
 def test_image_definition_exists() -> None:
     """The shippable image definition is versioned and points at the entry point."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
-    assert "ENTRYPOINT" in dockerfile and "Deck" in dockerfile
-    assert "3.11" in dockerfile
+    assert "ENTRYPOINT" in dockerfile and "deck.cli" in dockerfile
+    assert re.search(r"python:3\.(11|12|13)", dockerfile)
 
 
 def test_run_contract_files_exist() -> None:

@@ -6,6 +6,7 @@ import logging
 from datetime import UTC, datetime
 
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
@@ -22,7 +23,6 @@ from deck.docker_gateway import (
     ResourceType,
 )
 from deck.tui.screens import (
-    ContainerCreateScreen,
     ContainerDetailsScreen,
     ContainerListView,
     HelpScreen,
@@ -122,7 +122,8 @@ class DeckApp(App[None]):
         ("k", "move_up", "Up"),
         ("down", "move_down", "Down"),
         ("up", "move_up", "Up"),
-        ("enter", "open_selected", "Open"),
+        # Priority: the focused DataTable would otherwise consume Enter itself.
+        Binding("enter", "open_selected", "Open", priority=True),
         ("1", "switch_containers", "Containers"),
         ("2", "switch_images", "Images"),
         ("3", "switch_volumes", "Volumes"),
@@ -163,6 +164,12 @@ class DeckApp(App[None]):
         yield app_footer()
 
     def on_mount(self) -> None:
+        # Honor display.theme from the config file (it was parsed but never applied).
+        theme = "textual-light" if self._app_config.display.theme == "light" else "textual-dark"
+        try:
+            self.theme = theme
+        except Exception:  # noqa: BLE001 - unknown theme name must not block startup
+            log.debug("Could not apply theme %s", theme)
         self._start_resource_load(ResourceType.CONTAINERS)
 
     # ------------------------------------------------------------------
@@ -194,6 +201,7 @@ class DeckApp(App[None]):
     def _save_current_position(self) -> None:
         try:
             view = self.query_one("#container-list", ResourceListView)
+            view.sync_selection()
             self._positions[self.current_resource_type] = view.position
         except Exception:  # noqa: BLE001 - safe during startup/tests
             pass
@@ -202,7 +210,6 @@ class DeckApp(App[None]):
         self._load_generation += 1
         generation = self._load_generation
         self._refreshing = True
-        position = self._positions[resource_type]
         view = self.query_one("#container-list", ResourceListView)
         view.show_resource(resource_type, [], state="loading", message=f"Loading {resource_type.value}…")
         loading = self.query_one("#loading", Static)
@@ -261,8 +268,7 @@ class DeckApp(App[None]):
         if resource_type is ResourceType.CONTAINERS:
             containers = [row for row in rows if isinstance(row, ManagedContainer)]
             view.show_containers(containers)
-            view._selected = max(0, min(position, max(len(containers) - 1, 0)))
-            view.move_selection(0)
+            view.select_row(position)
             self._selected_index = view.position
         else:
             resources = [
@@ -288,6 +294,9 @@ class DeckApp(App[None]):
     # ------------------------------------------------------------------
 
     def _move_selection(self, delta: int) -> None:
+        # j/k belong to the main list, never to an open modal.
+        if len(self.screen_stack) > 1:
+            return
         try:
             view = self.query_one("#container-list", ResourceListView)
         except Exception:  # noqa: BLE001
@@ -306,7 +315,11 @@ class DeckApp(App[None]):
         self._move_selection(-1)
 
     def action_open_selected(self) -> None:
+        # Enter must not stack another details modal on top of an open one.
+        if len(self.screen_stack) > 1:
+            return
         view = self.query_one("#container-list", ResourceListView)
+        view.sync_selection()
         if self.current_resource_type is ResourceType.CONTAINERS:
             selected = view.selected()
             if selected is not None:
@@ -315,22 +328,6 @@ class DeckApp(App[None]):
         selected_resource = view.selected_resource()
         if selected_resource is not None:
             self.push_screen(ResourceDetailsScreen(selected_resource))
-        # Check if user selected "Create New Container" option in images view
-        elif self.current_resource_type is ResourceType.IMAGES:
-            # Get the last row (which should be the create option)
-            row_count = len(view._resources) if view._resources else 0
-            if view.position == row_count:  # Last row is the create option
-                # Find the first image to use as template (this is a simplified approach)
-                # In a real implementation, you'd want to let the user select an image first
-                if view._resources:
-                    # Get the currently selected image as the base for creation
-                    if view._resources and view.position < len(view._resources):
-                        base_image = view._resources[view.position]
-                    else:
-                        # Use the first image as default
-                        base_image = view._resources[0] if view._resources else None
-                    if base_image and isinstance(base_image, ManagedImage):
-                        self.push_screen(ContainerCreateScreen(base_image, self._gateway))
 
     # ------------------------------------------------------------------
     # Existing container lifecycle behavior
@@ -338,9 +335,13 @@ class DeckApp(App[None]):
 
     def _after_details(self, mutated: bool | None) -> None:
         if mutated:
+            self._save_current_position()
             self._start_resource_load(ResourceType.CONTAINERS)
 
     def action_refresh(self) -> None:
+        if len(self.screen_stack) > 1:
+            return
+        self._save_current_position()
         self._start_resource_load(self.current_resource_type)
 
     def action_help(self) -> None:

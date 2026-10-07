@@ -1,13 +1,13 @@
 [project]
 name = "deck-manager"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Keyboard-first terminal UI for managing local Docker Engine state"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
   "textual~=8.2",
-  "docker==7.2.0",
+  "docker>=7.1,<8",
   "platformdirs>=4.3",
 ]
 
@@ -27,6 +27,9 @@ deck = "deck.cli:main"
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/deck/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/deck"]
