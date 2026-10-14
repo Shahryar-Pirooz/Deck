@@ -23,6 +23,8 @@ from deck.docker_gateway import (
     ConnectionState,
     ContainerLogView,
     ContainerOperationError,
+    ContainerRunError,
+    ContainerRunRequest,
     DockerGateway,
     DockerSnapshot,
     DockerSystemSummary,
@@ -30,7 +32,6 @@ from deck.docker_gateway import (
     ManagedImage,
     ManagedNetwork,
     ManagedVolume,
-    ResourceType,
     bucket_for_status,
 )
 
@@ -188,14 +189,20 @@ def build_managed_image(native: Any) -> ManagedImage:
     """Translate one SDK image object to a validated row."""
     image_id = str(getattr(native, "id", "") or "")
     tags = getattr(native, "tags", None) or []
-    repository_tag = str(tags[0] if tags else (getattr(native, "short_id", "") or "unknown") or "unknown")
+    fallback = getattr(native, "short_id", "") or "unknown"
+    repository_tag = str(tags[0] if tags else fallback or "unknown")
     attrs = getattr(native, "attrs", None)
     if not isinstance(attrs, dict):
         attrs = {}
     created_attr = getattr(native, "created", None)
     created = str(created_attr) if created_attr else _format_created(attrs.get("Created"))
     size_bytes = int(attrs.get("Size", 0)) if isinstance(attrs.get("Size"), (int, float)) else 0
-    return ManagedImage(image_id=image_id, repository_tag=repository_tag, size_bytes=size_bytes, created=created)
+    return ManagedImage(
+        image_id=image_id,
+        repository_tag=repository_tag,
+        size_bytes=size_bytes,
+        created=created,
+    )
 
 
 def build_managed_volume(native: Any) -> ManagedVolume:
@@ -243,6 +250,48 @@ def _operation_error(operation: str, container: str, exc: BaseException) -> Cont
         container,
         "the Engine reported a failure.",
         "Press r to refresh and retry.",
+    )
+
+
+def _map_run_error(operation: str, subject: str, exc: BaseException) -> ContainerRunError:
+    """Map an SDK failure during run/pull to a contract-coded run error."""
+    if isinstance(exc, APIError):
+        code = exc.status_code
+        if code == 404 or isinstance(exc, NotFound):
+            return ContainerRunError(
+                "ImageNotFound",
+                f"Image '{subject}' is not available locally and could not be found.",
+                "Check the image name and tag, or pull it manually.",
+            )
+        if code == 409:
+            return ContainerRunError(
+                "NameCollision",
+                f"Container name '{subject}' already exists.",
+                "Choose a different name and retry.",
+            )
+    chained = _chain_messages(exc).lower()
+    if "permission denied" in chained or "permission" in chained:
+        return ContainerRunError(
+            "DaemonUnavailable",
+            f"Permission denied accessing the Docker Engine during {operation}.",
+            _PERMISSION_HINT,
+        )
+    if (
+        isinstance(exc, FileNotFoundError)
+        or errno.ENOENT in _chain_errnos(exc)
+        or "connection refused" in chained
+        or "cannot connect" in chained
+        or "no such file" in chained
+    ):
+        return ContainerRunError(
+            "DaemonUnavailable",
+            f"Cannot reach the Docker Engine during {operation}.",
+            _MISSING_SOCKET_HINT,
+        )
+    return ContainerRunError(
+        "DaemonUnavailable",
+        f"{operation.capitalize()} failed for '{subject}': the Engine reported a failure.",
+        "Check that Docker is running, then retry.",
     )
 
 
@@ -536,6 +585,51 @@ class SdkGateway(DockerGateway):
             except (ValueError, TypeError, AttributeError) as exc:
                 log.debug("Skipping unparsable network row: %r", exc)
         return rows
+
+    def create_and_run_container(self, request: ContainerRunRequest) -> str:
+        try:
+            client = self._container_client()
+        except Exception as exc:  # noqa: BLE001 - mapped below
+            raise _map_run_error("create", request.name, exc) from exc
+        try:
+            kwargs: dict[str, Any] = {"detach": True, "name": request.name}
+            if request.ports:
+                kwargs["ports"] = {
+                    f"{mapping.host_port}/tcp": mapping.container_port for mapping in request.ports
+                }
+            if request.volumes:
+                kwargs["volumes"] = {
+                    mount.source_path: {"bind": mount.container_path, "mode": "rw"}
+                    for mount in request.volumes
+                }
+            if request.env_vars:
+                kwargs["environment"] = [f"{entry.key}={entry.value}" for entry in request.env_vars]
+            if request.network:
+                kwargs["network"] = request.network
+            native = client.containers.run(request.image, **kwargs)
+            return str(getattr(native, "id", "") or "")
+        except Exception as exc:  # noqa: BLE001 - mapped below
+            raise _map_run_error("create", request.name, exc) from exc
+        finally:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001, S110 - best-effort cleanup
+                pass
+
+    def pull_image(self, image: str) -> None:
+        try:
+            client = self._container_client()
+        except Exception as exc:  # noqa: BLE001 - mapped below
+            raise _map_run_error("pull", image, exc) from exc
+        try:
+            client.images.pull(image)
+        except Exception as exc:  # noqa: BLE001 - mapped below
+            raise _map_run_error("pull", image, exc) from exc
+        finally:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001, S110 - best-effort cleanup
+                pass
 
     def __enter__(self) -> SdkGateway:
         return self

@@ -11,10 +11,17 @@ import platformdirs
 from deck.config import APP_NAME
 
 _REDACT_PATTERN = re.compile(
-    r"(?i)(password|passwd|token|secret|authorization|api[_-]?key)\s*[:=]\s*"
+    r"(?i)(password|passwd|token|secret|authorization|api[_-]?key|credential|"
+    r"private[_-]?key|access[_-]?key)\s*[:=]\s*"
     r"([\"']?)([^\s\"',;}]+)\2"
 )
 _REDACT_REPLACEMENT = r"\1=***REDACTED***"
+
+_SENSITIVE_ENV_RE = re.compile(
+    r"(?i)\b([A-Z0-9_]*(?:PASSWORD|PASSWD|TOKEN|SECRET|API[_-]?KEY|CREDENTIAL|"
+    r"PRIVATE[_-]?KEY|ACCESS[_-]?KEY|AUTH)[A-Z0-9_]*)\s*=\s*([^\s\"';,]+)"
+)
+_SENSITIVE_ENV_REPLACEMENT = r"\1=***REDACTED***"
 
 
 class RedactionFilter(logging.Filter):
@@ -23,6 +30,7 @@ class RedactionFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
         redacted = _REDACT_PATTERN.sub(_REDACT_REPLACEMENT, message)
+        redacted = _SENSITIVE_ENV_RE.sub(_SENSITIVE_ENV_REPLACEMENT, redacted)
         if redacted != message:
             record.msg = redacted
             record.args = ()

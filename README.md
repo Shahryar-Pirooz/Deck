@@ -89,6 +89,7 @@ The current implementation provides:
 - stop container
 - restart container
 - remove container
+- run a new container from an image (name, ports, volumes, network, env)
 
 The architecture is intentionally separated so that Docker-specific code is isolated from the TUI.
 
@@ -121,6 +122,36 @@ The architecture is intentionally separated so that Docker-specific code is isol
 ```
 
 Only the Docker SDK adapter directly communicates with the Docker Python package. This keeps the application layer easier to test without requiring a live Docker daemon.
+
+## 🚀 Image Run Menu
+
+From the **Images** view, press `Enter` on a selected image to open the run configuration menu. The menu collects everything a container needs to start:
+
+| Field | Format | Required |
+|---|---|---|
+| Name | any unique container name | yes |
+| Ports | `host:container` entries (e.g. `8080:80`, `127.0.0.1:9000:9000`) | no |
+| Volumes | `source:destination` entries (e.g. `/data:/app/data`) | no |
+| Network | existing network name; empty uses the default bridge | no |
+| Environment | `KEY=value` entries (e.g. `DEBUG=true`) | no |
+
+**Keyboard shortcuts (inside the menu)**:
+
+- `n` / `Space`: add a list entry (ports, volumes, env) — type the value and press `Enter`
+- `d`: remove the selected list entry · `e`: edit it · `j`/`k`: move the selection
+- `Tab`: move between fields · `Tab` to **Review & Start**, press `Enter`: open the confirmation review
+- `y` / `Enter` on the review: create and start the container (detached)
+- `n` / `Esc` on the review: back to the form · `Esc` on the form: cancel without creating anything
+
+**Failure modes**:
+
+- Duplicate name → error with a numeric-suffix suggestion (e.g. `myapp-2`), form stays open
+- Invalid port/volume/env format → the entry is rejected with the expected format shown
+- Unknown network name → rejected with a hint to check the name or use the default bridge
+- Image not available locally → the image is pulled in the background (the TUI stays responsive); success or failure is shown as a notification
+- Docker daemon unavailable → actionable error, nothing is created
+
+**Security note**: environment variable values are shown in full on the confirmation review so you can verify them before committing; they are never written to logs (sensitive keys are redacted).
 
 ---
 

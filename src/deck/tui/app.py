@@ -22,9 +22,9 @@ from deck.docker_gateway import (
     ManagedVolume,
     ResourceType,
 )
+from deck.tui.run_config import RunConfigScreen
 from deck.tui.screens import (
     ContainerDetailsScreen,
-    ContainerListView,
     HelpScreen,
     ResourceDetailsScreen,
     ResourceListView,
@@ -122,8 +122,9 @@ class DeckApp(App[None]):
         ("k", "move_up", "Up"),
         ("down", "move_down", "Down"),
         ("up", "move_up", "Up"),
-        # Priority: the focused DataTable would otherwise consume Enter itself.
-        Binding("enter", "open_selected", "Open", priority=True),
+        # Enter reaches the focused widget first (e.g. Buttons in modals);
+        # the DataTable emits RowSelected which calls action_open_selected.
+        Binding("enter", "open_selected", "Open"),
         ("1", "switch_containers", "Containers"),
         ("2", "switch_images", "Images"),
         ("3", "switch_volumes", "Volumes"),
@@ -211,7 +212,8 @@ class DeckApp(App[None]):
         generation = self._load_generation
         self._refreshing = True
         view = self.query_one("#container-list", ResourceListView)
-        view.show_resource(resource_type, [], state="loading", message=f"Loading {resource_type.value}…")
+        loading_message = f"Loading {resource_type.value}…"
+        view.show_resource(resource_type, [], state="loading", message=loading_message)
         loading = self.query_one("#loading", Static)
         loading.update(f"Loading {resource_type.value}…")
         loading.display = True
@@ -271,13 +273,14 @@ class DeckApp(App[None]):
             view.select_row(position)
             self._selected_index = view.position
         else:
-            resources = [
-                row for row in rows if isinstance(row, (ManagedImage, ManagedVolume, ManagedNetwork))
-            ]
+            row_types = (ManagedImage, ManagedVolume, ManagedNetwork)
+            resources = [row for row in rows if isinstance(row, row_types)]
             view.show_resource(resource_type, resources, position=position)
         self._positions[resource_type] = view.position
 
-    def _resource_load_failed(self, resource_type: ResourceType, generation: int, detail: str) -> None:
+    def _resource_load_failed(
+        self, resource_type: ResourceType, generation: int, detail: str
+    ) -> None:
         if generation != self._load_generation or resource_type is not self.current_resource_type:
             return
         self._refreshing = False
@@ -323,11 +326,19 @@ class DeckApp(App[None]):
         if self.current_resource_type is ResourceType.CONTAINERS:
             selected = view.selected()
             if selected is not None:
-                self.push_screen(ContainerDetailsScreen(selected, self._gateway), self._after_details)
+                self.push_screen(
+                    ContainerDetailsScreen(selected, self._gateway), self._after_details
+                )
             return
         selected_resource = view.selected_resource()
-        if selected_resource is not None:
-            self.push_screen(ResourceDetailsScreen(selected_resource))
+        if selected_resource is None:
+            return
+        if self.current_resource_type is ResourceType.IMAGES and isinstance(
+            selected_resource, ManagedImage
+        ):
+            self.push_screen(RunConfigScreen(selected_resource, self._gateway), self._after_run)
+            return
+        self.push_screen(ResourceDetailsScreen(selected_resource))
 
     # ------------------------------------------------------------------
     # Existing container lifecycle behavior
@@ -337,6 +348,12 @@ class DeckApp(App[None]):
         if mutated:
             self._save_current_position()
             self._start_resource_load(ResourceType.CONTAINERS)
+
+    def _after_run(self, mutated: bool | None) -> None:
+        """After a successful launch, show the new container in Containers view."""
+        if mutated:
+            self._save_current_position()
+            self._switch_to(ResourceType.CONTAINERS)
 
     def action_refresh(self) -> None:
         if len(self.screen_stack) > 1:

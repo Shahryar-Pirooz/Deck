@@ -193,6 +193,82 @@ class ManagedNetwork:
             raise ValueError("name must be a non-empty string")
 
 
+@dataclass(frozen=True)
+class PortMapping:
+    """One host:container port pair for a container launch."""
+
+    host_port: str
+    container_port: str
+
+    def __post_init__(self) -> None:
+        if not self.host_port:
+            raise ValueError("host_port must be a non-empty string")
+        if not self.container_port:
+            raise ValueError("container_port must be a non-empty string")
+
+
+@dataclass(frozen=True)
+class VolumeMount:
+    """One source:destination bind mount for a container launch."""
+
+    source_path: str
+    container_path: str
+
+    def __post_init__(self) -> None:
+        if not self.source_path:
+            raise ValueError("source_path must be a non-empty string")
+        if not self.container_path:
+            raise ValueError("container_path must be a non-empty string")
+
+
+@dataclass(frozen=True)
+class EnvVar:
+    """One KEY=value environment entry for a container launch."""
+
+    key: str
+    value: str
+
+    def __post_init__(self) -> None:
+        if not self.key:
+            raise ValueError("key must be a non-empty string")
+
+
+@dataclass(frozen=True)
+class ContainerRunRequest:
+    """Contract-shaped request for creating and starting a detached container."""
+
+    image: str
+    name: str
+    ports: tuple[PortMapping, ...] = ()
+    volumes: tuple[VolumeMount, ...] = ()
+    network: str | None = None
+    env_vars: tuple[EnvVar, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.image:
+            raise ValueError("image must be a non-empty string")
+        if not self.name:
+            raise ValueError("name must be a non-empty string")
+        if self.network is not None and not self.network.strip():
+            object.__setattr__(self, "network", None)
+
+
+class ContainerRunError(Exception):
+    """Container-launch failure with a contract error code and optional hint."""
+
+    def __init__(self, code: str, message: str, suggestion: str = "") -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.suggestion = suggestion
+
+    def user_text(self) -> str:
+        """Message plus suggestion for direct display in the TUI."""
+        if self.suggestion:
+            return f"{self.message} {self.suggestion}"
+        return self.message
+
+
 class DockerGateway(Protocol):
     """Thin connectivity seam owned by the application."""
 
@@ -243,4 +319,18 @@ class DockerGateway(Protocol):
 
     def list_networks(self) -> list[ManagedNetwork]:
         """List networks from the Engine; empty when unreachable."""
+        ...
+
+    def create_and_run_container(self, request: ContainerRunRequest) -> str:
+        """Create and start a detached container; returns the new container id.
+
+        Raises ContainerRunError with a contract error code on failure.
+        """
+        ...
+
+    def pull_image(self, image: str) -> None:
+        """Pull an image from the configured registry (blocking).
+
+        Raises ContainerRunError with a contract error code on failure.
+        """
         ...

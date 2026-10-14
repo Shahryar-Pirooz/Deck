@@ -20,7 +20,8 @@ from deck.docker_gateway import (
     ManagedVolume,
     ResourceType,
 )
-from deck.tui.widgets import FieldRow, SidebarView
+from deck.tui.widgets import FieldRow
+from deck.tui.widgets import SidebarView as SidebarView  # re-exported for tests
 
 STATE_LABELS = {
     ConnectionState.CONNECTED: "Connected",
@@ -45,7 +46,7 @@ NEXT_STEPS = {
 SHORTCUTS = (
     ("j / k", "Move down / up"),
     ("1-4", "Containers / Images / Volumes / Networks"),
-    ("Enter", "Open selected resource"),
+    ("Enter", "Open container details; run a container from an image"),
     ("s/t/r/d/l", "Start / stop / restart / remove / logs (in details)"),
     ("y / n", "Confirm / cancel removal"),
     ("r", "Refresh Docker information"),
@@ -300,9 +301,7 @@ class ResourceListView(ContainerListView):
         super().__init__(*args, **kwargs)
 
         self._resource_type = ResourceType.CONTAINERS
-        self._resources: list[
-            ManagedImage | ManagedVolume | ManagedNetwork
-        ] = []
+        self._resources: list[ManagedImage | ManagedVolume | ManagedNetwork] = []
         self._state = "ready"
         self._state_message = ""
 
@@ -341,7 +340,9 @@ class ResourceListView(ContainerListView):
             ResourceType.NETWORKS: self.NETWORK_COLUMNS,
         }.get(self._resource_type, self.COLUMNS)
 
-    def _resource_to_row(self, resource: ManagedImage | ManagedVolume | ManagedNetwork) -> tuple[str, ...]:
+    def _resource_to_row(
+        self, resource: ManagedImage | ManagedVolume | ManagedNetwork
+    ) -> tuple[str, ...]:
         if isinstance(resource, ManagedImage):
             size = _format_size(resource.size_bytes)
             short_id = resource.image_id.removeprefix("sha256:")[:12]
@@ -456,36 +457,42 @@ class ResourceDetailsScreen(ModalScreen[None]):
     def _details_text(self) -> str:
         resource = self._resource
         if isinstance(resource, ManagedImage):
-            return "\n".join((
-                "Image Details",
-                "",
-                f"Repository / tag: {resource.repository_tag}",
-                f"ID: {resource.image_id}",
-                f"Size: {_format_size(resource.size_bytes)}",
-                f"Created: {resource.created}",
-                "",
-                "Read-only. Press Esc or q to close.",
-            ))
+            return "\n".join(
+                (
+                    "Image Details",
+                    "",
+                    f"Repository / tag: {resource.repository_tag}",
+                    f"ID: {resource.image_id}",
+                    f"Size: {_format_size(resource.size_bytes)}",
+                    f"Created: {resource.created}",
+                    "",
+                    "Read-only. Press Esc or q to close.",
+                )
+            )
         if isinstance(resource, ManagedVolume):
-            return "\n".join((
-                "Volume Details",
+            return "\n".join(
+                (
+                    "Volume Details",
+                    "",
+                    f"Name: {resource.name}",
+                    f"Driver: {resource.driver}",
+                    f"Mountpoint: {resource.mountpoint}",
+                    "",
+                    "Read-only. Press Esc or q to close.",
+                )
+            )
+        return "\n".join(
+            (
+                "Network Details",
                 "",
                 f"Name: {resource.name}",
+                f"ID: {resource.network_id}",
                 f"Driver: {resource.driver}",
-                f"Mountpoint: {resource.mountpoint}",
+                f"Scope: {resource.scope}",
                 "",
                 "Read-only. Press Esc or q to close.",
-            ))
-        return "\n".join((
-            "Network Details",
-            "",
-            f"Name: {resource.name}",
-            f"ID: {resource.network_id}",
-            f"Driver: {resource.driver}",
-            f"Scope: {resource.scope}",
-            "",
-            "Read-only. Press Esc or q to close.",
-        ))
+            )
+        )
 
     def action_close_details(self) -> None:
         self.dismiss(None)
@@ -704,112 +711,6 @@ class ContainerDetailsScreen(ModalScreen[bool]):
     def action_dismiss_details(self) -> None:
         """Close the details modal; True tells the caller to refresh the list."""
         self.dismiss(self.mutated)
-
-
-class ContainerCreateScreen(ModalScreen[bool]):
-    """Modal screen for creating a new container from an image.
-
-    Dismisses with True when a mutation succeeded (caller should refresh),
-    False/None on plain close. Dismiss with Esc or q.
-    """
-
-    BINDINGS = [
-        ("escape", "dismiss_create", "Close"),
-        ("q", "dismiss_create", "Close"),
-    ]
-
-    def __init__(self, image: ManagedImage, gateway: DockerGateway | None = None) -> None:
-        super().__init__()
-        self._image = image
-        self._gateway = gateway
-        self._name = ""
-        self._ports: list[str] = []
-        self._volumes: list[str] = []
-        self._network = ""
-        self._envs: list[str] = []
-        self._current_field = 0
-        self._result = ""
-
-    def compose(self) -> ComposeResult:
-        yield Static(f"Create container from: {self._image.repository_tag}", id="create-title")
-        yield Static(
-            "Name: " + (self._name or "(press Enter to edit)"),
-            id="create-name",
-        )
-        yield Static(
-            "Ports: " + (", ".join(self._ports) if self._ports else "(press Enter to edit)"),
-            id="create-ports",
-        )
-        yield Static(
-            "Volumes: " + (", ".join(self._volumes) if self._volumes else "(press Enter to edit)"),
-            id="create-volumes",
-        )
-        yield Static(
-            "Network: " + (self._network or "(press Enter to edit)"),
-            id="create-network",
-        )
-        yield Static(
-            "Env: " + (", ".join(self._envs) if self._envs else "(press Enter to edit)"),
-            id="create-envs",
-        )
-        yield Static("", id="create-result")
-        yield Static("Press Enter to edit fields, s to start, Esc/q to cancel.", id="create-help")
-
-    def _refresh(self) -> None:
-        try:
-            self.query_one("#create-name", Static).update(f"Name: {self._name or '(press Enter to edit)'}")
-            self.query_one("#create-ports", Static).update(f"Ports: {', '.join(self._ports) if self._ports else '(press Enter to edit)'}")
-            self.query_one("#create-volumes", Static).update(f"Volumes: {', '.join(self._volumes) if self._volumes else '(press Enter to edit)'}")
-            self.query_one("#create-network", Static).update(f"Network: {self._network or '(press Enter to edit)'}")
-            self.query_one("#create-envs", Static).update(f"Env: {', '.join(self._envs) if self._envs else '(press Enter to edit)'}")
-        except Exception:  # noqa: BLE001 - unmounted in unit tests
-            pass
-
-    def _show_result(self, text: str) -> None:
-        self._result = text
-        try:
-            self.query_one("#create-result", Static).update(text)
-        except Exception:  # noqa: BLE001 - unmounted in unit tests
-            pass
-
-    def _start_container(self) -> None:
-        if self._gateway is None:
-            self._show_result("Engine unavailable.")
-            return
-        if not self._name:
-            self._show_result("Container name is required.")
-            return
-        gateway = self._gateway
-        image = self._image
-        name = self._name
-        ports = list(self._ports)
-        volumes = list(self._volumes)
-        network = self._network
-        envs = list(self._envs)
-
-        def work() -> None:
-            try:
-                # Use services to create the container
-                from deck import services
-                services.run_managed(
-                    gateway,
-                    image,
-                    name=name,
-                    ports=ports,
-                    volumes=volumes,
-                    network=network,
-                    envs=envs,
-                )
-            except Exception as exc:  # noqa: BLE001 - never crash the worker
-                self.app.call_from_thread(self._show_result, f"Failed: {exc}")
-                return
-            self.app.call_from_thread(self.dismiss, True)
-
-        self.run_worker(work, thread=True)
-
-    def action_dismiss_create(self) -> None:
-        """Close the create modal."""
-        self.dismiss(False)
 
 
 class HelpScreen(ModalScreen[None]):
