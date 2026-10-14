@@ -109,7 +109,7 @@ As a user, I want to attach the container I am launching to a specific Docker ne
 - **FR-004**: The configuration menu MUST accept one or more volume mounts as a list input, where each entry follows the source:destination path format
 - **FR-005**: The configuration menu MUST accept a single network name as a text input
 - **FR-006**: The configuration menu MUST accept one or more environment variables as a list input, where each entry follows the KEY=value format
-- **FR-007**: The configuration menu MUST display a "start" or "confirm" action that creates and starts the container with the provided configuration
+- **FR-007**: The configuration menu MUST display a "start" or "confirm" action that opens a confirmation review screen summarizing the name, ports, volumes, network, and env vars before creating and starting the container
 - **FR-008**: The configuration menu MUST display a "cancel" action that closes the menu without creating a container
 - **FR-009**: After a container is successfully created, the user MUST be returned to the Containers view (or the view is refreshed) to see the new container
 - **FR-010**: The user MUST be able to add, remove, or edit items in each list field (ports, volumes, envs) before confirming
@@ -122,6 +122,14 @@ As a user, I want to attach the container I am launching to a specific Docker ne
 - **Port Mapping**: A pair of host and container ports that define how network traffic is routed to the container
 - **Volume Mount**: A mapping between a host path and a container path for persistent data storage
 - **Environment Variable**: A key-value pair that configures runtime behavior inside the container
+
+## Clarifications
+
+- **Confirmation Step**: The feature must include a confirmation review screen before creating a container. The user must explicitly confirm the container name, port mappings, volume mounts, network, and environment variables before the container is created and started. Upon confirmation, the system MUST create and start the container in a detached mode, making it running immediately. A notification MUST be displayed on successful launch.
+- **Image Pull Handling**: When the selected image is not available locally, the system MUST attempt to pull the image from the configured registry in a background mode. The pull should not block the TUI event loop. When complete, a notification MUST be displayed to the user showing success or failure.
+- **Name Collision Handling**: If the user provides a container name that already exists, the system MUST reject the name with a clear error message and suggest a unique alternative (e.g., appending a numeric suffix like "myapp-2").
+- **Images View Scope**: The Images view MUST only display images that are already pulled locally. Images unavailable locally MUST NOT be requested from registries while rendering the view, preserving TUI responsiveness.
+- **Container Start Behavior**: Upon successful creation, the container MUST start automatically in detached mode (equivalent to Docker's default `docker run` behavior). The user MUST see the new container appear in the Containers view once it transitions to the running state.
 
 ## Success Criteria *(mandatory)*
 

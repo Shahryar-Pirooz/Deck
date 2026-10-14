@@ -1,0 +1,82 @@
+# Contracts: Image Run Menu
+
+## Container Run API Contract
+
+The Image Run Menu provides a CLI and TUI interface to create and start Docker containers. The core contract is a **ContainerRunRequest** that defines the inputs for creating a container from an image.
+
+### ContainerRunRequest
+
+| Field | Type | Description |
+|---|---|---|
+| `image` | `str` | Docker image name (e.g., "nginx:latest"). Must be locally available. |
+| `name` | `str` | User-assigned container name. Must be unique; suggestions appended on collision. |
+| `ports` | `list[PortMapping]` | List of host:container port mappings. Optional. |
+| `volumes` | `list[VolumeMount]` | List of host_path:container_path mounts. Optional. |
+| `network` | `str` | Target Docker network name. Empty/null for default bridge. Optional. |
+| `env_vars` | `list[EnvVar]` | List of environment variables as KEY=VALUE pairs. Optional. |
+
+### PortMapping
+
+| Field | Type | Format |
+|---|---|---|
+| `host_port` | `str` | "8080" or "127.0.0.1:8080" |
+| `container_port` | `str` | "80" |
+
+### VolumeMount
+
+| Field | Type | Format |
+|---|---|---|
+| `source_path` | `str` | Host path (e.g., "/data") |
+| `container_path` | `str` | Container mount path (e.g., "/app/data") |
+
+### EnvVar
+
+| Field | Type | Format |
+|---|---|---|
+| `key` | `str` | "DEBUG" |
+| `value` | `str` | "true" |
+
+## Request Lifecycle
+
+1. **Selection**: User selects an image from Images view. → `image` set.
+2. **Configuration**: User fills configuration form. → `name`, `ports`, `volumes`, `network`, `env_vars` set. Validate:
+   - Name non-empty; unique.
+   - Port mapping format `host_port:container_port`.
+   - Volume format `source_path:container_path`.
+   - Env var format `KEY=value`.
+3. **Review**: Confirmation screen shows all inputs. → user confirms.
+4. **Execution**: Run operation dispatched:
+   - If image not locally available, pull in background; wait for completion.
+   - Docker SDK `client.containers.run(image, detach=True, ...)`.
+5. **Response**: Notification shown (success or failure). → container appears in Containers view on success.
+
+## Error Contract
+
+### Failure Scenarios
+
+| Error Type | Description | User Action |
+|---|---|---|
+| `ImageNotFound` | Selected image not locally available and pull failed. | Try a different image or pull manually. |
+| `NameCollision` | Container name already exists. | Update name (suggestion available). |
+| `InvalidPortFormat` | Port mapping not in host:container format. | Fix format (e.g., "8080:80"). |
+| `InvalidVolumeFormat` | Volume entry not in source:destination format. | Fix format (e.g., "/data:/app/data"). |
+| `DaemonUnavailable` | Docker daemon not running. | Start Docker daemon and retry. |
+
+### Response Format
+
+```json
+{
+  "status": "success\|error",
+  "container_id": "optional if success",
+  "container_name": "",
+  "image": "",
+  "errors": [
+    {
+      "code": "ImageNotFound\|NameCollision\|...",
+      "message": "User-friendly error description",
+      "suggestion": "optional user action hint"
+    }
+  ],
+  "notification": "success/failure message for UI"
+}
+```
